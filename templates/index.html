@@ -1,0 +1,3564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snowman Dance — Couple's Rhythm Game</title>
+  <meta name="description" content="A real-time couple's rhythm game. Sync your hearts, dance together, and fill the Vibe Meter!" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet" />
+  <style>
+    /* ═══════════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════════ */
+    :root {
+      --pink:   #f9a8d4;
+      --pink-d: #ec4899;
+      --blue:   #93c5fd;
+      --blue-d: #3b82f6;
+      --purple: #c084fc;
+      --white:  #f0f9ff;
+      --snow:   rgba(255,255,255,0.88);
+      --glass:  rgba(255,255,255,0.14);
+      --glass-b:rgba(255,255,255,0.28);
+      --shadow: 0 8px 40px rgba(0,0,80,0.4);
+      --r:      18px;
+      --ff:     'Nunito', sans-serif;
+      --script: 'Satisfy', cursive;
+    }
+
+    /* ═══════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      font-family: var(--ff);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ═══════════════════════════════════════════
+       GLOBAL BACKGROUND + SNOW OVERLAY
+    ═══════════════════════════════════════════ */
+    #bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: url('/static/background.png') center/cover no-repeat;
+    }
+
+    /* Snow canvas sits above bg, below UI */
+    #snow-canvas {
+      position: fixed; inset: 0; z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Screen wrapper */
+    .screen {
+      position: fixed; inset: 0; z-index: 2;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    .screen.hidden {
+      opacity: 0; pointer-events: none; transform: scale(1.04);
+    }
+
+    /* ═══════════════════════════════════════════
+       GLOBAL FOOTER (Bottom-Right Side)
+    ═══════════════════════════════════════════ */
+    .footer {
+      position: fixed !important;
+      bottom: 8px !important;
+      right: 16px !important;
+      left: auto !important;
+      transform: none !important;
+      text-align: right !important;
+      z-index: 100 !important;
+      font-size: .72rem; letter-spacing: .14em; text-transform: uppercase;
+      color: rgba(255,255,255,0.8);
+      text-shadow: 0 1px 4px rgba(0,0,0,.7);
+      padding: 4px 12px;
+      background: rgba(0,0,20,0.4);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 100px;
+      pointer-events: none;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+
+    /* Floating Music Control Pill */
+    .music-pill {
+      position: fixed; top: 16px; right: 18px; z-index: 95;
+      display: flex; align-items: center; gap: .55rem;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 100px;
+      padding: .45rem 1rem;
+      color: #fff; font-family: var(--ff); font-size: .78rem; font-weight: 700;
+      cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+      transition: all .25s cubic-bezier(.34,1.56,.64,1);
+    }
+    .music-pill:hover {
+      background: rgba(249, 168, 212, 0.3);
+      border-color: var(--pink);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(236,72,153,.45);
+    }
+    .music-pill.playing {
+      border-color: rgba(249, 168, 212, 0.8);
+      box-shadow: 0 0 15px rgba(236,72,153,.35);
+    }
+    .sound-wave {
+      display: flex; align-items: flex-end; gap: 2.5px; height: 13px;
+    }
+    .sound-wave span {
+      width: 2.5px; background: #fff; border-radius: 2px;
+      animation: wave 1.1s infinite ease-in-out;
+    }
+    .sound-wave span:nth-child(1) { height: 6px; animation-delay: 0s; }
+    .sound-wave span:nth-child(2) { height: 13px; animation-delay: 0.2s; }
+    .sound-wave span:nth-child(3) { height: 8px; animation-delay: 0.4s; }
+    .music-pill.paused .sound-wave span {
+      animation: none; height: 3px; opacity: 0.5;
+    }
+    @keyframes wave {
+      0%, 100% { height: 4px; }
+      50% { height: 13px; }
+    }
+
+    /* ═══════════════════════════════════════════
+       FLOATING MAILBOX NOTIFICATION PILL (Top-Left)
+    ═══════════════════════════════════════════ */
+    .mailbox-pill {
+      position: fixed; top: 16px; left: 18px; z-index: 95;
+      display: flex; align-items: center; gap: .55rem;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 100px;
+      padding: .45rem 1rem;
+      color: #fff; font-family: var(--ff); font-size: .78rem; font-weight: 700;
+      cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+      transition: all .25s cubic-bezier(.34,1.56,.64,1);
+    }
+    .mailbox-pill:hover {
+      background: rgba(249, 168, 212, 0.3);
+      border-color: var(--pink);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(236,72,153,.45);
+    }
+    .mailbox-pill.has-unread {
+      border-color: rgba(249, 168, 212, 0.9);
+      box-shadow: 0 0 16px rgba(236,72,153,.55);
+      animation: mailboxPulse 2s infinite ease-in-out;
+    }
+    @keyframes mailboxPulse {
+      0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 0 12px rgba(236,72,153,.4); }
+      50% { transform: translateY(-2px) scale(1.04); box-shadow: 0 0 24px rgba(236,72,153,.75), 0 0 32px rgba(249,168,212,.4); }
+    }
+    .mailbox-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 20px; height: 20px; padding: 0 5px;
+      background: linear-gradient(135deg, #ef4444, #ec4899);
+      border-radius: 100px; font-size: .72rem; font-weight: 900;
+      color: #fff; box-shadow: 0 2px 8px rgba(239,68,68,.7);
+      animation: badgePop .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes badgePop {
+      0% { transform: scale(0); opacity: 0; }
+      70% { transform: scale(1.25); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .mailbox-badge.unread-pulse {
+      animation: badgeBlink 1.6s infinite ease-in-out;
+    }
+    @keyframes badgeBlink {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); box-shadow: 0 0 14px #ec4899; }
+    }
+
+    /* Mailbox Modal */
+    .mailbox-modal-box {
+      max-width: 540px !important; width: 94% !important;
+      max-height: 86vh !important;
+      display: flex; flex-direction: column;
+      padding: 1.5rem 1.8rem !important;
+      text-align: left !important;
+    }
+    .mailbox-header-row {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.15);
+      padding-bottom: .8rem; margin-bottom: .8rem;
+    }
+    .mailbox-title-wrap h2 {
+      font-family: var(--script); font-size: 1.7rem; color: var(--pink); margin: 0;
+      display: flex; align-items: center; gap: .4rem;
+    }
+    .mailbox-sub {
+      font-size: .8rem; color: rgba(255,255,255,.75); margin-top: .15rem;
+    }
+    .btn-icon-close {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+      border-radius: 50%; width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: .95rem; cursor: pointer; transition: all .2s;
+    }
+    .btn-icon-close:hover {
+      background: rgba(239,68,68,.3); border-color: #ef4444; transform: scale(1.08);
+    }
+    .mailbox-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: .6rem; margin-bottom: .6rem;
+    }
+    .mailbox-status-text {
+      font-size: .8rem; font-weight: 700; color: rgba(255,255,255,.8);
+    }
+    .btn-compose-toggle {
+      background: linear-gradient(135deg, rgba(236,72,153,.35), rgba(192,132,252,.35));
+      border: 1px solid rgba(249,168,212,.5); border-radius: 10px;
+      color: #fff; font-family: var(--ff); font-size: .78rem; font-weight: 800;
+      padding: .35rem .75rem; cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; gap: .35rem;
+    }
+    .btn-compose-toggle:hover {
+      background: linear-gradient(135deg, rgba(236,72,153,.6), rgba(192,132,252,.6));
+      border-color: var(--pink); transform: translateY(-1px);
+    }
+    /* Collapsible Compose inside Mailbox */
+    .mailbox-quick-compose {
+      background: rgba(255,255,255,.08); border: 1.5px solid rgba(249,168,212,.4);
+      border-radius: 14px; padding: .85rem 1rem; margin-bottom: .8rem;
+      display: flex; flex-direction: column; gap: .5rem;
+      animation: modalIn .2s ease;
+    }
+    .compose-field-row {
+      display: flex; flex-direction: column; gap: .25rem;
+    }
+    .compose-field-row label {
+      font-size: .75rem; font-weight: 800; color: rgba(255,255,255,.8);
+    }
+    .compose-field-row input, .compose-field-row textarea {
+      width: 100%; border: 1px solid rgba(255,255,255,.2); border-radius: 8px;
+      background: rgba(255,255,255,.1); color: #fff; font-family: var(--ff);
+      font-size: .85rem; padding: .45rem .65rem; outline: none;
+    }
+    .compose-field-row textarea {
+      resize: vertical; min-height: 60px; font-family: var(--script); font-size: 1.05rem;
+    }
+    .compose-field-row input:focus, .compose-field-row textarea:focus {
+      border-color: var(--pink);
+    }
+    .compose-bottom-row {
+      flex-direction: row; align-items: center; justify-content: space-between; gap: .5rem;
+    }
+    .btn-primary-send {
+      background: linear-gradient(135deg, var(--pink-d), var(--purple));
+      border: none; border-radius: 8px; color: #fff; font-family: var(--ff);
+      font-size: .82rem; font-weight: 800; padding: .45rem 1rem; cursor: pointer;
+      box-shadow: 0 2px 10px rgba(236,72,153,.4); white-space: nowrap;
+      transition: transform .15s;
+    }
+    .btn-primary-send:hover { transform: scale(1.04); }
+    .mb-status {
+      font-size: .75rem; min-height: 1.1em;
+    }
+    .mb-status.ok { color: #86efac; }
+    .mb-status.err { color: #fca5a5; }
+
+    /* Mailbox Scroll Area & Cards */
+    .mailbox-notes-scroll {
+      overflow-y: auto; max-height: 48vh; display: flex; flex-direction: column;
+      gap: .75rem; padding-right: 4px;
+    }
+    .empty-mailbox {
+      text-align: center; padding: 1.8rem 1rem; color: rgba(255,255,255,.8);
+      display: flex; flex-direction: column; align-items: center; gap: .5rem;
+    }
+    .empty-mailbox .empty-ico { font-size: 2.2rem; }
+    .empty-mailbox h3 { font-family: var(--script); font-size: 1.45rem; color: var(--pink); margin: 0; }
+    .empty-mailbox p { font-size: .85rem; max-width: 320px; line-height: 1.5; color: rgba(255,255,255,.7); }
+    .btn-compose-action {
+      background: linear-gradient(135deg, var(--pink-d), var(--purple));
+      border: none; border-radius: 10px; color: #fff; font-family: var(--ff);
+      font-size: .85rem; font-weight: 800; padding: .55rem 1.1rem; cursor: pointer;
+      margin-top: .4rem; box-shadow: 0 4px 15px rgba(236,72,153,.4);
+      transition: transform .15s;
+    }
+    .btn-compose-action:hover { transform: scale(1.04); }
+
+    /* Single Note Card inside Mailbox */
+    .mb-note-card {
+      background: linear-gradient(145deg, rgba(255,255,255,.97) 0%, rgba(253,242,248,.97) 100%);
+      border: 2px solid rgba(249,168,212,.6); border-radius: 14px;
+      padding: .9rem 1.1rem; color: #1e293b; position: relative;
+      box-shadow: 0 4px 18px rgba(0,0,30,.2);
+      transition: transform .15s;
+    }
+    .mb-note-card:hover { transform: translateY(-2px); }
+    .mb-card-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: .25rem; font-size: .75rem; font-weight: 800;
+    }
+    .mb-note-tag {
+      background: rgba(236,72,153,.12); color: #be185d; padding: .15rem .5rem;
+      border-radius: 100px;
+    }
+    .mb-note-time { color: #94a3b8; font-family: var(--ff); font-weight: normal; font-size: .7rem; }
+    .mb-salutation {
+      font-family: var(--script); font-size: 1.25rem; color: #1e293b; margin-bottom: .2rem;
+    }
+    .mb-body {
+      font-family: var(--script); font-size: 1.1rem; line-height: 1.6;
+      color: #334155; white-space: pre-wrap; padding: .25rem 0;
+    }
+    .mb-closing {
+      font-family: var(--script); font-size: 1.15rem; color: #1e293b; margin-top: .25rem;
+    }
+    .mb-closing .mb-sender { color: #be185d; font-weight: bold; }
+    .mb-actions {
+      display: flex; justify-content: flex-end; margin-top: .35rem;
+    }
+    .btn-mb-reply {
+      background: #fdf2f8; border: 1px solid rgba(236,72,153,.4); border-radius: 6px;
+      color: #be185d; font-family: var(--ff); font-size: .72rem; font-weight: 800;
+      padding: .25rem .6rem; cursor: pointer; transition: all .15s;
+    }
+    .btn-mb-reply:hover { background: #fce7f3; transform: scale(1.05); }
+
+    .mailbox-footer {
+      display: flex; justify-content: flex-end; margin-top: .8rem;
+      border-top: 1px solid rgba(255,255,255,.12); padding-top: .6rem;
+    }
+
+    /* ═══════════════════════════════════════════
+       GLASS CARD
+    ═══════════════════════════════════════════ */
+    .glass-card {
+      background: var(--glass);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid var(--glass-b);
+      border-radius: var(--r);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.3);
+      padding: 2.4rem 2.8rem;
+      color: #fff;
+    }
+
+    /* ═══════════════════════════════════════════
+       LOBBY SCREEN
+    ═══════════════════════════════════════════ */
+    #lobby {
+      gap: 0;
+      overflow-y: auto;
+      padding: clamp(1rem, 3.5vh, 2.2rem) 1rem 3.5rem;
+      justify-content: flex-start;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    #lobby .glass-card {
+      width: min(420px, 92vw);
+      display: flex; flex-direction: column;
+      align-items: center; gap: .7rem;
+      text-align: center;
+      padding: 1.1rem 2rem 1.3rem;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    #lobby h1 {
+      font-family: var(--script);
+      font-size: clamp(1.45rem, 3.8vw, 1.95rem);
+      background: linear-gradient(135deg, #fff 20%, var(--pink) 60%, var(--blue) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      line-height: 1.15;
+      margin: 0;
+    }
+    #lobby p.subtitle {
+      font-size: .8rem; color: rgba(255,255,255,.8); margin-top: -.25rem; margin-bottom: 0;
+      letter-spacing: .04em;
+    }
+
+    /* Room code row (System-given room) */
+    .room-row {
+      display: flex; gap: .5rem; width: 100%; align-items: center;
+      background: rgba(255,255,255,.08); padding: .38rem .7rem;
+      border-radius: 12px; border: 1.5px solid rgba(249,168,212,.3);
+    }
+    .room-label {
+      font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+      color: rgba(255,255,255,.75); font-weight: 700; white-space: nowrap;
+    }
+    #room-display {
+      flex: 1; font-family: var(--ff); font-size: 1rem; font-weight: 900;
+      letter-spacing: .08em; color: var(--pink); text-align: center;
+      text-shadow: 0 0 10px rgba(249,168,212,.6);
+      user-select: all; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .room-btn-action {
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25);
+      border-radius: 8px; color: rgba(255,255,255,.85);
+      font-size: .75rem; padding: .28rem .6rem; cursor: pointer;
+      transition: all .2s; white-space: nowrap; flex-shrink: 0;
+      font-family: var(--ff);
+    }
+    .room-btn-action:hover {
+      background: rgba(255,255,255,.18); color: #fff; border-color: var(--pink);
+    }
+    .room-btn-action.copied {
+      border-color: #86efac; color: #86efac;
+    }
+
+    /* Input */
+    .input-wrap { width: 100%; position: relative; }
+    .input-wrap input {
+      width: 100%; padding: .55rem 1rem;
+      border-radius: 12px;
+      border: 1.5px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.1);
+      color: #fff; font-family: var(--ff); font-size: .9rem;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    .input-wrap input::placeholder { color: rgba(255,255,255,.45); }
+    .input-wrap input:focus {
+      border-color: var(--pink);
+      box-shadow: 0 0 0 3px rgba(249,168,212,.25);
+    }
+
+    /* Primary join button */
+    #btn-join {
+      width: 100%; padding: .72rem;
+      border: none; border-radius: 14px; cursor: pointer;
+      font-family: var(--ff); font-size: .95rem; font-weight: 800;
+      letter-spacing: .05em; color: #fff;
+      background: linear-gradient(135deg, var(--pink-d), var(--purple));
+      box-shadow: 0 4px 20px rgba(236,72,153,.45);
+      transition: transform .15s, box-shadow .15s;
+      position: relative; overflow: hidden;
+    }
+    #btn-join::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,.18));
+    }
+    #btn-join:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(236,72,153,.55); }
+    #btn-join:active { transform: translateY(0); }
+
+    /* ── Beginning Window (Lobby) Note Options ── */
+    .lobby-notes-bar {
+      display: flex;
+      gap: .6rem;
+      width: 100%;
+      margin: .25rem 0 .15rem;
+    }
+    .btn-lobby-note {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45rem;
+      padding: .55rem .75rem;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: var(--ff);
+      font-size: .82rem;
+      font-weight: 700;
+      color: #fff;
+      border: 1.5px solid rgba(255, 255, 255, .25);
+      background: rgba(255, 255, 255, .12);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: all .2s cubic-bezier(.34, 1.56, .64, 1);
+      position: relative;
+    }
+    .btn-lobby-send-note {
+      background: linear-gradient(135deg, rgba(236, 72, 153, .35), rgba(192, 132, 252, .35));
+      border-color: rgba(249, 168, 212, .6);
+      box-shadow: 0 4px 14px rgba(236, 72, 153, .25);
+    }
+    .btn-lobby-send-note:hover {
+      background: linear-gradient(135deg, rgba(236, 72, 153, .55), rgba(192, 132, 252, .55));
+      border-color: var(--pink);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(236, 72, 153, .45);
+    }
+    .btn-lobby-view-notes {
+      background: linear-gradient(135deg, rgba(56, 189, 248, .25), rgba(236, 72, 153, .25));
+      border-color: rgba(147, 197, 253, .5);
+    }
+    .btn-lobby-view-notes:hover {
+      background: linear-gradient(135deg, rgba(56, 189, 248, .4), rgba(236, 72, 153, .4));
+      border-color: var(--blue-l);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, .35);
+    }
+    .btn-lobby-note .note-btn-ico {
+      font-size: 1.1rem;
+    }
+
+    /* Secondary buttons */
+    .btn-row { display: flex; gap: .6rem; width: 100%; }
+    .btn-secondary {
+      flex: 1; padding: .42rem;
+      border: 1.5px solid rgba(255,255,255,.25);
+      border-radius: 12px; background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.85); font-family: var(--ff);
+      font-size: .8rem; font-weight: 700; cursor: pointer;
+      transition: all .2s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.45); }
+
+    /* Status bar */
+    #lobby-status {
+      font-size: .85rem; color: rgba(255,255,255,.8);
+      min-height: 1.2em; text-align: center;
+    }
+    #lobby-status.error { color: #fca5a5; }
+    #lobby-status.success { color: #86efac; }
+
+    /* Waiting indicator */
+    #waiting-indicator {
+      display: none; align-items: center; gap: .5rem;
+      font-size: .88rem; color: rgba(255,255,255,.75);
+    }
+    #waiting-indicator.show { display: flex; }
+    .dot-bounce { display: inline-flex; gap: .3rem; }
+    .dot-bounce span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--pink);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .dot-bounce span:nth-child(2) { animation-delay: .2s; }
+    .dot-bounce span:nth-child(3) { animation-delay: .4s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: .5; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ═══════════════════════════════════════════
+       MODAL
+    ═══════════════════════════════════════════ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,20,.65); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: rgba(20,20,60,.88);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px; padding: 2rem 2.4rem;
+      max-width: 400px; width: 90%; color: #fff; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      animation: modalIn .25s ease;
+    }
+    @keyframes modalIn { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .modal-box h2 {
+      font-family: var(--script); font-size: 1.5rem;
+      color: var(--pink); margin-bottom: .8rem;
+    }
+    .modal-box p { font-size: .92rem; line-height: 1.65; color: rgba(255,255,255,.85); }
+    .modal-close {
+      margin-top: 1.4rem; padding: .6rem 1.6rem;
+      border: 1.5px solid rgba(255,255,255,.3); border-radius: 10px;
+      background: rgba(255,255,255,.1); color: #fff;
+      font-family: var(--ff); font-size: .9rem; cursor: pointer;
+      transition: all .2s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,.22); }
+
+    /* ═══════════════════════════════════════════
+       GAME SCREEN
+    ═══════════════════════════════════════════ */
+    #game {
+      justify-content: flex-start;
+      padding: 1.5rem 1rem 5rem;
+      gap: 1rem;
+    }
+
+    /* ── Vibe Meter ── */
+    #vibe-section {
+      width: min(500px, 94vw);
+      display: flex; flex-direction: column; align-items: center; gap: .5rem;
+    }
+    #vibe-label {
+      font-size: .78rem; letter-spacing: .15em; text-transform: uppercase;
+      color: rgba(255,255,255,.8); display: flex; gap: .5rem; align-items: center;
+    }
+    #vibe-label .heart-ico { font-size: 1rem; }
+    #vibe-bar-wrap {
+      width: 100%; height: 18px;
+      background: rgba(255,255,255,.12);
+      border-radius: 100px;
+      border: 1px solid rgba(255,255,255,.18);
+      overflow: hidden; position: relative;
+    }
+    #vibe-bar {
+      height: 100%; width: 0%;
+      border-radius: 100px;
+      background: linear-gradient(90deg, var(--pink-d), var(--purple), var(--blue-d));
+      box-shadow: 0 0 12px var(--pink);
+      transition: width .6s cubic-bezier(.34,1.56,.64,1);
+      position: relative;
+    }
+    #vibe-bar::after {
+      content: '';
+      position: absolute; top: 0; bottom: 0; right: 0;
+      width: 30px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.4));
+      animation: shimmer 2s linear infinite;
+    }
+    @keyframes shimmer { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+    #vibe-pct {
+      font-size: .9rem; font-weight: 800;
+      background: linear-gradient(135deg, var(--pink), var(--purple));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    /* ── Role Selection Toggle in Lobby ── */
+    .role-section {
+      width: 100%; display: flex; flex-direction: column; gap: .4rem;
+      align-items: center;
+    }
+    .role-label {
+      font-size: .75rem; letter-spacing: .08em; text-transform: uppercase;
+      color: rgba(255,255,255,.8); font-weight: 700;
+    }
+    .role-toggle-group {
+      display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; width: 100%;
+    }
+    .role-btn {
+      padding: .42rem .4rem; border-radius: 12px;
+      border: 1.5px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.08);
+      cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: .15rem;
+      transition: all .2s cubic-bezier(.34,1.56,.64,1);
+      color: rgba(255,255,255,.8); font-family: var(--ff); text-align: center;
+    }
+    .role-btn:hover {
+      background: rgba(255,255,255,.14); border-color: rgba(249,168,212,.5);
+      color: #fff; transform: translateY(-2px);
+    }
+    .role-btn.active {
+      border-color: var(--pink);
+      background: linear-gradient(135deg, rgba(249,168,212,.28), rgba(192,132,252,.22));
+      box-shadow: 0 0 0 2px rgba(249,168,212,.4), 0 8px 20px rgba(236,72,153,.3);
+      color: #fff; transform: scale(1.02);
+    }
+    .role-btn .role-icon {
+      font-size: 1.35rem; line-height: 1;
+    }
+    .role-btn .role-title {
+      font-size: .85rem; font-weight: 800; letter-spacing: .04em;
+    }
+    .role-btn .role-sub {
+      font-size: .65rem; color: rgba(255,255,255,.65); letter-spacing: .02em;
+      line-height: 1.1;
+    }
+    .role-btn.active .role-sub {
+      color: rgba(255,255,255,.9);
+    }
+
+    /* ── Character Stage & Centered Timer ── */
+    #stage {
+      width: min(640px, 98vw);
+      display: flex; align-items: flex-end; justify-content: space-between;
+      position: relative;
+      flex: 1; min-height: 220px; max-height: 320px;
+    }
+
+    .player-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      gap: .4rem; position: absolute; bottom: 0;
+      transition: left .8s cubic-bezier(.34,1.56,.64,1), right .8s cubic-bezier(.34,1.56,.64,1);
+      z-index: 2;
+    }
+    #p1-wrap { left: 0; }
+    #p2-wrap { right: 0; }
+
+    .player-name-tag {
+      font-size: .78rem; font-weight: 800; letter-spacing: .08em;
+      color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7);
+      background: rgba(0,0,0,.45); padding: .2rem .7rem;
+      border-radius: 100px; white-space: nowrap;
+      border: 1px solid rgba(255,255,255,.15);
+    }
+    .player-wrap.highlight-me .player-name-tag {
+      border-color: #86efac;
+      background: rgba(16,185,129,.35);
+      box-shadow: 0 0 10px rgba(134,239,172,.5);
+    }
+
+    .sprite {
+      width: 150px; height: 150px;
+      background-repeat: no-repeat;
+      background-size: 400% 400%;  /* 4×4 grid */
+      image-rendering: auto;
+      transition: transform .15s ease;
+    }
+    #sprite-p1 {
+      background-image: url('/static/player2.png'); /* Boy (Left) - Transparent */
+      background-position: 0% 0%;
+    }
+    #sprite-p2 {
+      background-image: url('/static/player1.png'); /* Girl (Right) - Transparent, Black Background Removed */
+      background-position: 0% 0%;
+      transform: scaleX(-1);  /* Mirror so they face each other */
+    }
+
+    /* Sprite dancing move animation */
+    @keyframes dance-step {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-16px) scale(1.06); }
+    }
+    @keyframes dance-step-mirror {
+      0%, 100% { transform: scaleX(-1) translateY(0) scale(1); }
+      50% { transform: scaleX(-1) translateY(-16px) scale(1.06); }
+    }
+    #sprite-p1.dancing-move { animation: dance-step .5s ease infinite alternate; }
+    #sprite-p2.dancing-move { animation: dance-step-mirror .5s ease infinite alternate; }
+
+    /* Stumble / Shake animation */
+    @keyframes stumble {
+      0%   { transform: rotate(0deg); }
+      20%  { transform: rotate(-12deg) translateY(4px); }
+      40%  { transform: rotate(12deg) translateY(-4px); }
+      60%  { transform: rotate(-8deg); }
+      80%  { transform: rotate(6deg); }
+      100% { transform: rotate(0deg); }
+    }
+    @keyframes stumble-mirror {
+      0%   { transform: scaleX(-1) rotate(0deg); }
+      20%  { transform: scaleX(-1) rotate(-12deg) translateY(4px); }
+      40%  { transform: scaleX(-1) rotate(12deg) translateY(-4px); }
+      60%  { transform: scaleX(-1) rotate(-8deg); }
+      80%  { transform: scaleX(-1) rotate(6deg); }
+      100% { transform: scaleX(-1) rotate(0deg); }
+    }
+    #sprite-p1.stumble { animation: stumble .6s ease; }
+    #sprite-p2.stumble { animation: stumble-mirror .6s ease; }
+
+    /* Win slide — characters move to center */
+    #p1-wrap.win-slide { left: calc(50% - 140px) !important; }
+    #p2-wrap.win-slide { right: calc(50% - 140px) !important; }
+
+    /* ── Center Synced 10-Second Countdown Dial ── */
+    #countdown-center-wrap {
+      position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: .35rem;
+      pointer-events: none; z-index: 5;
+    }
+    #countdown-dial {
+      position: relative; width: 92px; height: 92px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #timer-svg {
+      width: 100%; height: 100%; transform: rotate(-90deg);
+    }
+    .timer-track {
+      fill: none; stroke: rgba(255,255,255,.14); stroke-width: 6;
+    }
+    .timer-circle {
+      fill: none; stroke: url(#timer-grad); stroke-width: 6;
+      stroke-linecap: round;
+      stroke-dasharray: 263.89;
+      stroke-dashoffset: 0;
+      filter: drop-shadow(0 0 6px rgba(249,168,212,.7));
+    }
+    #countdown-inner {
+      position: absolute; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none; transition: transform .15s ease;
+    }
+    #countdown-num {
+      font-size: 1.55rem; font-weight: 900; color: #fff;
+      font-family: var(--ff); line-height: 1;
+      text-shadow: 0 0 12px rgba(249,168,212,.9), 0 2px 6px rgba(0,0,0,.6);
+    }
+    #countdown-unit {
+      font-size: .62rem; color: rgba(255,255,255,.7); letter-spacing: .08em;
+      text-transform: uppercase; margin-top: 1px;
+    }
+    #countdown-inner.beat-pulse {
+      transform: scale(1.22);
+    }
+    #countdown-inner.beat-pulse #countdown-num {
+      color: #ffe4e6;
+      text-shadow: 0 0 20px #f43f5e, 0 0 35px var(--pink);
+    }
+    #countdown-round-badge {
+      font-size: .72rem; font-weight: 800; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--pink);
+      background: rgba(0,0,0,.4); padding: .15rem .6rem; border-radius: 100px;
+    }
+    #countdown-status {
+      font-size: .8rem; color: rgba(255,255,255,.9); letter-spacing: .05em;
+      font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.6);
+      min-height: 1.2rem; text-align: center; white-space: nowrap;
+    }
+
+    /* ── Complementary Move Buttons ── */
+    #moves-container {
+      display: flex; flex-direction: column; align-items: center; gap: .7rem;
+      width: min(580px, 96vw); z-index: 10; margin-top: .5rem;
+    }
+    #role-turn-indicator {
+      display: flex; align-items: center; gap: .6rem;
+    }
+    #role-badge {
+      font-size: .78rem; font-weight: 800; letter-spacing: .06em;
+      color: #fff; background: linear-gradient(135deg, var(--pink), var(--purple));
+      padding: .2rem .75rem; border-radius: 100px;
+      box-shadow: 0 2px 8px rgba(236,72,153,.4);
+    }
+    #role-hint {
+      font-size: .75rem; color: rgba(255,255,255,.75); letter-spacing: .04em;
+    }
+    .moves-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem;
+      width: 100%;
+    }
+    .btn-move {
+      padding: .85rem .5rem; border-radius: 16px;
+      border: 1.5px solid rgba(249,168,212,.35);
+      background: rgba(255,255,255,.12);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0,0,30,.3), inset 0 1px 0 rgba(255,255,255,.3);
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: .3rem;
+      transition: all .2s cubic-bezier(.34,1.56,.64,1);
+      color: #fff; font-family: var(--ff); text-align: center;
+    }
+    .btn-move:hover:not(:disabled) {
+      transform: translateY(-4px) scale(1.03);
+      border-color: var(--pink);
+      background: rgba(249,168,212,.22);
+      box-shadow: 0 12px 30px rgba(236,72,153,.45), 0 0 15px rgba(249,168,212,.4);
+    }
+    .btn-move:active:not(:disabled) {
+      transform: scale(.96);
+    }
+    .btn-move .move-icon {
+      font-size: 1.9rem; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.4));
+    }
+    .btn-move .move-title {
+      font-size: .95rem; font-weight: 800; letter-spacing: .04em;
+      text-shadow: 0 1px 4px rgba(0,0,0,.6);
+    }
+    .btn-move .move-hint {
+      font-size: .65rem; color: rgba(255,255,255,.7); letter-spacing: .02em;
+    }
+    .btn-move.selected-move {
+      border-color: #86efac !important;
+      background: linear-gradient(135deg, rgba(134,239,172,.3), rgba(59,130,246,.3)) !important;
+      box-shadow: 0 0 0 3px rgba(134,239,172,.6), 0 12px 35px rgba(16,185,129,.4) !important;
+      transform: scale(1.05) !important;
+      opacity: 1 !important;
+    }
+    .btn-move:disabled:not(.selected-move) {
+      opacity: .42; cursor: not-allowed; transform: none;
+    }
+    #moves-pair-hint {
+      font-size: .72rem; color: rgba(255,255,255,.65); letter-spacing: .04em;
+      text-align: center; margin-top: .1rem;
+    }
+
+    /* ── Perfect Sync Overlay ── */
+    #perfect-overlay {
+      display: none; position: fixed; inset: 0; z-index: 50;
+      background: radial-gradient(ellipse at center, rgba(249,168,212,.35) 0%, rgba(0,0,40,.5) 70%);
+      align-items: center; justify-content: center; flex-direction: column;
+      gap: 1.2rem; backdrop-filter: blur(2px);
+    }
+    #perfect-overlay.show { display: flex; }
+    #perfect-overlay h2 {
+      font-family: var(--script); font-size: clamp(2.5rem, 7vw, 4.5rem);
+      color: #fff; text-shadow: 0 0 40px var(--pink), 0 4px 20px rgba(0,0,0,.4);
+      animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
+    }
+    #perfect-overlay .hearts-burst {
+      font-size: 3rem; animation: burst .6s ease;
+    }
+    @keyframes popIn { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes burst { 0% { transform: scale(0); } 60% { transform: scale(1.4); } 100% { transform: scale(1); } }
+
+    /* ── Heart Particles ── */
+    .heart-particle {
+      position: fixed; pointer-events: none; z-index: 55;
+      font-size: 1.4rem; animation: floatUp 1.8s ease forwards;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0) scale(0); opacity: 1; }
+      100% { transform: translateY(-180px) scale(1.2); opacity: 0; }
+    }
+
+    /* ═══════════════════════════════════════════
+       LETTER SCREEN
+    ═══════════════════════════════════════════ */
+    #letter-screen {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start !important;
+      align-items: center !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch;
+      padding: clamp(0.5rem, 1.8vh, 1.2rem) 1rem 3.5rem !important;
+      box-sizing: border-box;
+    }
+    .letter-container {
+      width: min(480px, 94vw);
+      display: flex; flex-direction: column; align-items: center; gap: .6rem;
+      margin: 0 auto !important;
+      padding-top: 0.1rem;
+    }
+    .letter-title {
+      font-family: var(--script); font-size: clamp(1.3rem, 3.6vw, 1.7rem);
+      color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.4), 0 0 25px var(--pink);
+    }
+
+    .letter-card {
+      width: 100%;
+      background: linear-gradient(145deg, rgba(255,255,255,.98) 0%, rgba(253,242,248,.98) 100%);
+      border: 2px solid rgba(249,168,212,.65);
+      border-radius: 16px;
+      box-shadow:
+        0 12px 35px rgba(0,0,80,.25),
+        0 0 0 4px rgba(249,168,212,.12),
+        inset 0 1px 0 rgba(255,255,255,.9);
+      position: relative; overflow: hidden;
+      padding: 1rem 1.3rem;
+    }
+
+    /* Decorative corner snowflakes */
+    .letter-card::before,
+    .letter-card::after {
+      content: '❄'; position: absolute;
+      font-size: 1.5rem; opacity: .18;
+      color: var(--blue-d);
+    }
+    .letter-card::before { top: 10px; left: 14px; }
+    .letter-card::after { bottom: 10px; right: 14px; transform: rotate(45deg); }
+
+    /* Salutation: Dear [Partner's Name], */
+    .letter-salutation {
+      font-family: var(--script);
+      font-size: 1.35rem;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: .25rem;
+      margin-bottom: .2rem;
+    }
+    .letter-static-label {
+      color: #1e293b;
+      font-family: var(--script);
+      font-size: 1.35rem;
+      user-select: none;
+    }
+    .letter-inline-input {
+      font-family: var(--script);
+      font-size: 1.35rem;
+      color: #be185d;
+      background: transparent;
+      border: none;
+      border-bottom: 2px dashed rgba(236,72,153,.45);
+      outline: none;
+      padding: 0 .3rem;
+      min-width: 110px;
+      max-width: 240px;
+      transition: all .2s;
+    }
+    .letter-inline-input:focus {
+      border-bottom: 2px solid var(--pink);
+      background: rgba(249,168,212,.15);
+      border-radius: 4px;
+    }
+
+    /* Fully editable body - optimized height so Send button is immediately visible! */
+    .letter-card textarea {
+      width: 100%; min-height: 100px; max-height: 160px;
+      border: none; background: transparent;
+      font-family: var(--script); font-size: 1.12rem; line-height: 1.6;
+      color: #334155; resize: vertical; outline: none;
+      white-space: pre-wrap;
+      padding: .4rem 0;
+    }
+    .letter-card textarea::placeholder {
+      color: rgba(100,116,139,.55);
+      font-family: var(--script);
+    }
+
+    /* Closing: Sincerely,\n[Your Name] */
+    .letter-closing {
+      font-family: var(--script);
+      font-size: 1.3rem;
+      color: #1e293b;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: .15rem;
+      margin-top: .2rem;
+    }
+    .letter-closing .letter-static-label {
+      font-size: 1.3rem;
+    }
+
+    /* Decorative line */
+    .letter-deco-line {
+      width: 100%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(249,168,212,.5), transparent);
+      margin: .4rem 0;
+    }
+
+    /* Stamp */
+    .letter-stamp {
+      position: absolute; top: 10px; right: 14px;
+      width: 42px; height: 42px; border-radius: 6px;
+      border: 2px solid rgba(236,72,153,.35);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      background: rgba(249,168,212,.1);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+    }
+
+    /* Share button */
+    #btn-share {
+      width: 100%;
+      padding: .75rem 2rem;
+      border: none; border-radius: 12px; cursor: pointer;
+      font-family: var(--ff); font-size: .96rem; font-weight: 800;
+      color: #fff; letter-spacing: .04em;
+      background: linear-gradient(135deg, var(--pink-d), var(--purple));
+      box-shadow: 0 6px 20px rgba(236,72,153,.45);
+      transition: transform .15s, box-shadow .15s;
+    }
+    #btn-share:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(236,72,153,.55); }
+    #btn-share:active { transform: translateY(0); }
+    #btn-share:disabled { opacity: .5; cursor: default; transform: none; }
+
+    #share-status {
+      font-size: .85rem; color: rgba(255,255,255,.8); min-height: 1.2em;
+    }
+    #share-status.ok { color: #86efac; }
+
+    /* ═══════════════════════════════════════════
+       SNOWFALL ANIMATION (Canvas-based)
+    ═══════════════════════════════════════════ */
+    /* Handled by JS */
+
+    /* ── Post-Game In-Stage Action Panel (Non-blocking, integrated right on stage) ── */
+    #game-over-panel {
+      display: flex; flex-direction: column; align-items: center; gap: .75rem;
+      width: min(620px, 96vw); z-index: 20; margin-top: .4rem;
+      animation: fadeIn .4s ease;
+    }
+    .game-over-celebrate {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .88rem; font-weight: 800; letter-spacing: .08em;
+      color: #fff; text-shadow: 0 0 15px var(--pink);
+      background: rgba(236,72,153,.22); border: 1px solid rgba(249,168,212,.4);
+      padding: .35rem 1rem; border-radius: 100px;
+    }
+    .game-over-celebrate .go-sparkles { font-size: 1.1rem; }
+
+    /* Partner Note Notification Banner on Stage */
+    .stage-note-alert {
+      display: flex; align-items: center; gap: .8rem;
+      background: linear-gradient(135deg, rgba(236,72,153,.45), rgba(192,132,252,.45));
+      border: 1.5px solid var(--pink); border-radius: 14px;
+      padding: .65rem 1.2rem; color: #fff;
+      box-shadow: 0 4px 20px rgba(236,72,153,.4), 0 0 15px rgba(249,168,212,.3);
+      animation: alertPulse 2s infinite ease-in-out;
+    }
+    @keyframes alertPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 4px 20px rgba(236,72,153,.4); }
+      50% { transform: scale(1.02); box-shadow: 0 6px 28px rgba(236,72,153,.7); }
+    }
+    .stage-note-alert .alert-ico { font-size: 1.4rem; }
+    .stage-note-alert .btn-read-alert {
+      background: #fff; color: var(--pink-d); font-family: var(--ff);
+      font-weight: 800; font-size: .8rem; border: none; border-radius: 8px;
+      padding: .35rem .75rem; cursor: pointer; transition: transform .15s;
+    }
+    .stage-note-alert .btn-read-alert:hover { transform: scale(1.05); }
+
+    .game-over-btn-row {
+      display: flex; flex-wrap: wrap; gap: .65rem; justify-content: center; width: 100%;
+    }
+    .btn-postgame {
+      display: flex; align-items: center; gap: .5rem;
+      padding: .75rem 1.2rem; border-radius: 14px; cursor: pointer;
+      font-family: var(--ff); font-size: .92rem; font-weight: 800;
+      color: #fff; border: 1.5px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.12); backdrop-filter: blur(12px);
+      transition: all .2s cubic-bezier(.34,1.56,.64,1);
+      box-shadow: 0 4px 15px rgba(0,0,30,.25);
+      position: relative;
+    }
+    .btn-postgame:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,30,.35);
+    }
+    .btn-postgame.btn-write-note {
+      background: linear-gradient(135deg, rgba(236,72,153,.35), rgba(192,132,252,.35));
+      border-color: rgba(249,168,212,.6);
+      box-shadow: 0 6px 20px rgba(236,72,153,.35);
+    }
+    .btn-postgame.btn-write-note:hover {
+      background: linear-gradient(135deg, rgba(236,72,153,.55), rgba(192,132,252,.55));
+      border-color: var(--pink);
+      transform: translateY(-2px) scale(1.02);
+    }
+    .btn-postgame.btn-view-note {
+      background: linear-gradient(135deg, rgba(251,191,36,.3), rgba(236,72,153,.35));
+      border-color: #fbbf24;
+      animation: alertPulse 2s infinite ease-in-out;
+    }
+    .btn-postgame.btn-replay:hover {
+      background: rgba(134,239,172,.25); border-color: #86efac;
+    }
+    .btn-postgame.btn-exit:hover {
+      background: rgba(239,68,68,.25); border-color: rgba(239,68,68,.6);
+    }
+    .btn-postgame .pg-ico { font-size: 1.25rem; }
+
+    /* ── Letter Screen Styles ── */
+    .letter-top-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; position: relative; gap: 1rem;
+    }
+    .btn-back-stage {
+      display: flex; align-items: center; gap: .3rem;
+      padding: .45rem .9rem; border-radius: 10px; font-size: .82rem; font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .section-badge {
+      font-size: .82rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; color: #fff; background: linear-gradient(135deg, var(--pink), var(--purple));
+      padding: .3rem .9rem; border-radius: 100px; display: inline-flex;
+      margin-bottom: .4rem; box-shadow: 0 2px 8px rgba(236,72,153,.4);
+    }
+    .received-notes-section {
+      width: 100%; display: flex; flex-direction: column; align-items: flex-start;
+      gap: .6rem;
+    }
+    .received-notes-list {
+      display: flex; flex-direction: column; gap: .8rem; width: 100%;
+    }
+    .received-note-card {
+      width: 100%;
+      background: linear-gradient(145deg, rgba(255,255,255,.98) 0%, rgba(253,242,248,.98) 100%);
+      border: 2px solid rgba(249,168,212,.7); border-radius: 18px;
+      box-shadow: 0 12px 35px rgba(0,0,40,.28);
+      position: relative; overflow: hidden; padding: 1.3rem 1.6rem;
+    }
+    .received-note-card .received-note-stamp {
+      position: absolute; top: 12px; right: 14px; font-size: 1.25rem;
+      background: rgba(236,72,153,.12); color: #be185d;
+      padding: .2rem .6rem; border-radius: 100px; font-family: var(--ff);
+      font-size: .75rem; font-weight: 800;
+    }
+    .received-salutation {
+      font-family: var(--script); font-size: 1.45rem; color: #1e293b; margin-bottom: .25rem;
+    }
+    .received-body {
+      font-family: var(--script); font-size: 1.22rem; line-height: 1.75;
+      color: #334155; white-space: pre-wrap; padding: .5rem 0;
+      min-height: 70px;
+    }
+    .received-closing {
+      font-family: var(--script); font-size: 1.35rem; color: #1e293b;
+      margin-top: .35rem; display: flex; flex-direction: column; align-items: flex-start;
+    }
+    .received-closing .received-sender-name {
+      color: #be185d; font-weight: bold;
+    }
+    .received-closing .received-time {
+      font-family: var(--ff); font-size: .7rem; color: #94a3b8; font-weight: normal; margin-top: .15rem;
+    }
+    .received-note-footer-actions {
+      display: flex; flex-wrap: wrap; gap: .65rem; justify-content: space-between; align-items: center;
+      margin-top: 1rem; padding-top: .75rem;
+      border-top: 1.5px dashed rgba(249,168,212,.5);
+    }
+    .btn-card-reply {
+      background: linear-gradient(135deg, var(--pink-d), var(--purple));
+      border: none; border-radius: 10px; color: #fff;
+      font-family: var(--ff); font-size: .85rem; font-weight: 800;
+      padding: .5rem 1.1rem; cursor: pointer; transition: all .2s;
+      box-shadow: 0 4px 14px rgba(236,72,153,.35);
+      display: flex; align-items: center; gap: .4rem;
+    }
+    .btn-card-reply:hover {
+      transform: translateY(-2px); box-shadow: 0 6px 20px rgba(236,72,153,.5);
+    }
+    .btn-card-done {
+      background: rgba(0,0,30,.06); border: 1.5px solid rgba(0,0,30,.15);
+      border-radius: 10px; color: #334155;
+      font-family: var(--ff); font-size: .82rem; font-weight: 700;
+      padding: .48rem .95rem; cursor: pointer; transition: all .2s;
+    }
+    .btn-card-done:hover {
+      background: rgba(0,0,30,.12); color: #0f172a;
+    }
+    .compose-header {
+      font-family: var(--script); font-size: 1.35rem; color: #be185d; margin-bottom: .3rem;
+    }
+    .compose-actions {
+      display: flex; flex-direction: column; align-items: center; gap: .4rem; margin-top: .8rem;
+    }
+    .compose-bottom-nav {
+      display: flex; gap: .6rem; justify-content: center; width: 100%; margin-top: .5rem;
+    }
+    .letter-nav-row {
+      display: flex; gap: .75rem; justify-content: center; width: 100%; margin-top: .6rem;
+    }
+
+    /* ═══════════════════════════════════════════
+       UTILITY
+    ═══════════════════════════════════════════ */
+    .hidden { display: none !important; }
+
+    /* Responsive tweaks */
+    @media (max-height: 700px) {
+      .sprite { width: 110px; height: 110px; }
+      #btn-dance { width: 110px; height: 110px; }
+      #game { padding-top: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Floating Mailbox Notification Pill (Available at the very beginning!) -->
+<button id="btn-mailbox-toggle" class="mailbox-pill" title="Winter Mailbox — Check received letters & love notes">
+  <span class="mailbox-icon">📬</span>
+  <span class="mailbox-text">Letters</span>
+  <span id="mailbox-badge" class="mailbox-badge hidden">0</span>
+</button>
+
+<!-- Floating Music Control Pill -->
+<button id="btn-music-toggle" class="music-pill paused" title="Click to play / pause Snowman Waltz music">
+  <span id="music-icon">🎵</span>
+  <span id="music-text">Snowman Waltz</span>
+  <span class="sound-wave" id="sound-wave">
+    <span></span><span></span><span></span>
+  </span>
+</button>
+
+<!-- ══════════════════════════════════════════
+     GLOBAL BACKGROUND + SNOW
+══════════════════════════════════════════ -->
+<div id="bg"></div>
+<canvas id="snow-canvas"></canvas>
+
+<!-- ══════════════════════════════════════════
+     GLOBAL FOOTER
+══════════════════════════════════════════ -->
+<div class="footer">Made by Rajatava</div>
+
+<!-- ══════════════════════════════════════════
+     RHYTHM CUE BORDER FLASH
+══════════════════════════════════════════ -->
+<div id="rhythm-cue"></div>
+
+<!-- ══════════════════════════════════════════
+     SYNC TOAST
+══════════════════════════════════════════ -->
+<div id="sync-toast"></div>
+
+<!-- ══════════════════════════════════════════
+     PERFECT SYNC OVERLAY
+══════════════════════════════════════════ -->
+<div id="perfect-overlay">
+  <div class="hearts-burst">💕✨💫</div>
+  <h2>Perfect Sync! ❄️</h2>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 1: LOBBY
+══════════════════════════════════════════ -->
+<div id="lobby" class="screen">
+  <div class="glass-card">
+    <h1>❄ Snowman Dance ❄</h1>
+    <p class="subtitle">A winter rhythm for two hearts</p>
+
+    <!-- Room code (System-assigned) -->
+    <div class="room-row">
+      <span class="room-label">Room</span>
+      <span id="room-display">––––––––</span>
+      <button type="button" class="room-btn-action" id="btn-new-room" title="Generate another room name">↻ New</button>
+      <button type="button" class="room-btn-action" id="btn-copy-link" title="Copy shareable link">🔗 Copy Link</button>
+    </div>
+
+    <!-- Name input -->
+    <div class="input-wrap">
+      <input
+        type="text"
+        id="input-name"
+        placeholder="Enter your name…"
+        maxlength="20"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <!-- Role selection -->
+    <div class="role-section">
+      <div class="role-label">Choose Your Role</div>
+      <div class="role-toggle-group">
+        <button type="button" class="role-btn active" id="btn-role-boy" data-role="boy">
+          <span class="role-icon">👦</span>
+          <span class="role-title">Play as Boy (Left)</span>
+          <span class="role-sub">Reach Out • Spin Her • Dip</span>
+        </button>
+        <button type="button" class="role-btn" id="btn-role-girl" data-role="girl">
+          <span class="role-icon">👧</span>
+          <span class="role-title">Play as Girl (Right)</span>
+          <span class="role-sub">Take Hand • Twirl • Lean Back</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Join -->
+    <button id="btn-join">❄ Join the Dance ❄</button>
+
+    <!-- Winter Note Exchange in Beginning Window -->
+    <div class="lobby-notes-bar">
+      <button type="button" class="btn-lobby-note btn-lobby-send-note" id="btn-lobby-send-note">
+        <span class="note-btn-ico">💌</span>
+        <span class="note-btn-text">Send Winter Note</span>
+      </button>
+      <button type="button" class="btn-lobby-note btn-lobby-view-notes" id="btn-lobby-view-notes">
+        <span class="note-btn-ico">📬</span>
+        <span class="note-btn-text">View Letters</span>
+        <span id="lobby-letter-badge" class="mailbox-badge hidden">0</span>
+      </button>
+    </div>
+
+    <!-- Info buttons -->
+    <div class="btn-row">
+      <button class="btn-secondary" id="btn-howtoplay">How to Play</button>
+      <button class="btn-secondary" id="btn-aboutus">About Us</button>
+    </div>
+
+    <!-- Status / waiting -->
+    <div id="lobby-status"></div>
+    <div id="waiting-indicator">
+      <span>Waiting for partner</span>
+      <div class="dot-bounce"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 2: GAME
+══════════════════════════════════════════ -->
+<div id="game" class="screen hidden">
+  <!-- Vibe Meter -->
+  <div id="vibe-section">
+    <div id="vibe-label">
+      <span class="heart-ico">💜</span>
+      <span>Vibe Meter</span>
+      <span id="vibe-pct">0%</span>
+    </div>
+    <div id="vibe-bar-wrap">
+      <div id="vibe-bar"></div>
+    </div>
+  </div>
+
+  <!-- Stage: Boy (Left), Centered 5s Timer, Girl (Right) -->
+  <div id="stage">
+    <!-- Boy Character (Left) -->
+    <div class="player-wrap" id="p1-wrap">
+      <div class="player-name-tag" id="name-p1">👦 Boy</div>
+      <div class="sprite" id="sprite-p1"></div>
+    </div>
+
+    <!-- Centered Visual 10-Second Countdown Timer -->
+    <div id="countdown-center-wrap">
+      <div id="countdown-dial">
+        <svg id="timer-svg" viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="timer-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#f9a8d4" />
+              <stop offset="50%" stop-color="#ec4899" />
+              <stop offset="100%" stop-color="#c084fc" />
+            </linearGradient>
+          </defs>
+          <circle class="timer-track" cx="50" cy="50" r="42" />
+          <circle id="timer-bar" class="timer-circle" cx="50" cy="50" r="42" />
+        </svg>
+        <div id="countdown-inner">
+          <span id="countdown-num">5.0</span>
+          <span id="countdown-unit">sec</span>
+        </div>
+      </div>
+      <div id="countdown-round-badge">Round 1</div>
+      <div id="countdown-status">Waiting for partner… ❄️</div>
+    </div>
+
+    <!-- Girl Character (Right) -->
+    <div class="player-wrap" id="p2-wrap">
+      <div class="player-name-tag" id="name-p2">👧 Girl</div>
+      <div class="sprite" id="sprite-p2"></div>
+    </div>
+  </div>
+
+  <!-- Complementary Dance Moves -->
+  <div id="moves-container">
+    <div id="role-turn-indicator">
+      <span id="role-badge">👦 Boy's Move</span>
+      <span id="role-hint">Pick your lead step</span>
+    </div>
+
+    <div class="moves-grid" id="moves-grid">
+      <!-- Injected dynamically based on role -->
+    </div>
+
+    <div id="moves-pair-hint">
+      🤝 Reach Out + Take Hand &nbsp;•&nbsp; 🔄 Spin Her + Twirl &nbsp;•&nbsp; 💃 Dip + Lean Back
+    </div>
+  </div>
+
+  <!-- Post-Game Non-blocking Stage Controls -->
+  <div id="game-over-panel" class="game-over-panel hidden">
+    <div class="game-over-celebrate">
+      <span class="go-sparkles">💕✨</span>
+      <span class="go-text">Flawless Harmony! 100% Vibe Achieved</span>
+      <span class="go-sparkles">✨💕</span>
+    </div>
+
+    <!-- Partner Note Notification Alert Banner (Shows if notes arrive) -->
+    <div id="stage-note-alert" class="stage-note-alert hidden">
+      <span class="alert-ico">💌</span>
+      <span id="stage-note-alert-text">Partner sent you a winter note!</span>
+      <button type="button" class="btn-read-alert" id="btn-read-stage-alert">📖 View Note</button>
+    </div>
+
+    <div class="game-over-btn-row">
+      <button class="btn-postgame btn-write-note" id="btn-open-note">
+        <span class="pg-ico">💌</span>
+        <span class="pg-title">Write a Winter Note</span>
+      </button>
+
+      <button class="btn-postgame btn-view-note hidden" id="btn-view-notes">
+        <span class="pg-ico">📬</span>
+        <span class="pg-title" id="btn-view-notes-title">View Letters (0)</span>
+      </button>
+
+      <button class="btn-postgame btn-replay" id="btn-stage-replay">
+        <span class="pg-ico">🔄</span>
+        <span class="pg-title">Play Again</span>
+      </button>
+
+      <button class="btn-postgame btn-exit" id="btn-stage-exit">
+        <span class="pg-ico">🚪</span>
+        <span class="pg-title">Exit to Lobby</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 3: LETTER
+══════════════════════════════════════════ -->
+<div id="letter-screen" class="screen hidden">
+  <div class="letter-container">
+    <div class="letter-top-bar">
+      <button class="btn-secondary btn-back-stage" id="btn-back-stage">← Back to Options</button>
+      <div class="letter-title" id="letter-screen-title">❄️ Winter Notes ❄️</div>
+    </div>
+
+    <!-- Notes Section (ONLY shown when viewing letters) -->
+    <div id="received-notes-section" class="received-notes-section hidden">
+      <div class="section-badge">📬 Letters & Notes</div>
+      <div id="received-notes-list" class="received-notes-list">
+        <!-- Injected dynamically with letter card + "Send a Letter" option at the end -->
+      </div>
+    </div>
+
+    <!-- Compose & Send Note Card (ONLY shown when writing a letter) -->
+    <div class="letter-card hidden" id="compose-letter-card">
+      <div class="letter-stamp">🏔️</div>
+      <div class="compose-header">✍️ Write a Winter Note</div>
+
+      <!-- Salutation (Editable partner name) -->
+      <div class="letter-salutation">
+        <span class="letter-static-label">Dear</span>
+        <input
+          type="text"
+          id="letter-recipient"
+          class="letter-inline-input"
+          placeholder="Partner's Name"
+          maxlength="30"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <span class="letter-static-label">,</span>
+      </div>
+
+      <div class="letter-deco-line"></div>
+
+      <!-- User-authored message body (Empty default, no boilerplate format) -->
+      <textarea
+        id="letter-body"
+        rows="4"
+        placeholder="Write your winter note here... ❄️"
+        spellcheck="true"
+      ></textarea>
+
+      <div class="letter-deco-line"></div>
+
+      <!-- Closing (Sincerely, + Editable user name) -->
+      <div class="letter-closing">
+        <span class="letter-static-label">Sincerely,</span>
+        <input
+          type="text"
+          id="letter-sender"
+          class="letter-inline-input"
+          placeholder="Your Name"
+          maxlength="30"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+
+      <div class="compose-actions">
+        <button id="btn-share" class="btn-postgame btn-write-note">💌 Send Winter Note</button>
+        <div id="share-status"></div>
+      </div>
+
+      <!-- Quick nav inside compose card -->
+      <div class="compose-bottom-nav">
+        <button type="button" class="btn-secondary" id="btn-compose-to-read" style="display: none;">📖 Read Partner's Note</button>
+        <button type="button" class="btn-secondary" id="btn-compose-back-options">← Back to Options</button>
+      </div>
+    </div>
+
+    <!-- Global navigation buttons -->
+    <div class="letter-nav-row">
+      <button class="btn-secondary" id="btn-letter-back-options">← Back to Options</button>
+      <button class="btn-secondary" id="btn-letter-replay">🔄 Play Again</button>
+      <button class="btn-secondary" id="btn-letter-exit">🚪 Exit to Lobby</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════ -->
+<!-- Winter Mailbox Modal (Notification & Reader) -->
+<div class="modal-overlay" id="modal-mailbox">
+  <div class="modal-box mailbox-modal-box">
+    <div class="mailbox-header-row">
+      <div class="mailbox-title-wrap">
+        <h2><span>📬</span> Winter Mailbox</h2>
+        <p class="mailbox-sub">Sweet winter love notes & messages from your partner</p>
+      </div>
+      <button type="button" class="btn-icon-close" id="btn-close-mailbox" title="Close Mailbox">✕</button>
+    </div>
+
+    <!-- Mailbox Toolbar -->
+    <div class="mailbox-toolbar">
+      <div id="mailbox-status-text" class="mailbox-status-text">Checking for winter notes…</div>
+      <button type="button" class="btn-compose-toggle" id="btn-toggle-quick-compose">
+        <span id="compose-toggle-ico">✏️</span>
+        <span id="compose-toggle-text">Write a Note</span>
+      </button>
+    </div>
+
+    <!-- Collapsible Quick Compose Sheet inside Mailbox -->
+    <div id="mailbox-quick-compose" class="mailbox-quick-compose hidden">
+      <div class="compose-field-row">
+        <label>To (Partner):</label>
+        <input type="text" id="mb-recipient" placeholder="Recipient's name…" maxlength="30" />
+      </div>
+      <div class="compose-field-row">
+        <label>Your Message:</label>
+        <textarea id="mb-body" rows="3" placeholder="Write your warm winter thoughts here… ❄️" maxlength="2000"></textarea>
+      </div>
+      <div class="compose-bottom-row">
+        <div style="flex: 1; display: flex; align-items: center; gap: .3rem;">
+          <label style="font-size: .75rem; white-space: nowrap;">Sincerely,</label>
+          <input type="text" id="mb-sender" placeholder="Your name…" maxlength="30" style="flex: 1;" />
+        </div>
+        <button type="button" id="btn-mb-send" class="btn-primary-send">💌 Send Note</button>
+      </div>
+      <div id="mb-send-status" class="mb-status"></div>
+    </div>
+
+    <!-- Notes Container -->
+    <div id="mailbox-notes-container" class="mailbox-notes-scroll">
+      <!-- Injected by updateMailboxUI() -->
+    </div>
+
+    <div class="mailbox-footer">
+      <button class="modal-close" id="btn-mailbox-close-bottom">Close Mailbox</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-howtoplay">
+  <div class="modal-box">
+    <h2>How to Play ❄</h2>
+    <p>
+      ❄ <strong>1. Pick Opposite Roles</strong>: In the lobby, one player picks <strong>Play as Boy (Left)</strong> and the other picks <strong>Play as Girl (Right)</strong> in the same room.<br/><br/>
+      🎵 <strong>2. 10-Second Rounds</strong>: The server starts each round with a 10-second countdown timer in the center.<br/><br/>
+      💃 <strong>3. Match Complementary Moves</strong>:<br/>
+      &nbsp;&nbsp;• <strong>Reach Out</strong> (Boy) + <strong>Take Hand</strong> (Girl)<br/>
+      &nbsp;&nbsp;• <strong>Spin Her</strong> (Boy) + <strong>Twirl</strong> (Girl)<br/>
+      &nbsp;&nbsp;• <strong>Dip</strong> (Boy) + <strong>Lean Back</strong> (Girl)<br/><br/>
+      ✨ <strong>4. Score & Animate</strong>: Matching pairs increase Vibe by <strong>+20%</strong> and play the dance move animation! Mismatches decrease Vibe by <strong>-10%</strong>.<br/><br/>
+      ✉️ <strong>5. Win & Share</strong>: Reach 100% Vibe to bring the couple together and exchange your romantic Winter Letter!
+    </p>
+    <button class="modal-close" id="close-howtoplay">Got it! ❤️</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-aboutus">
+  <div class="modal-box">
+    <h2>About Us 🤍</h2>
+    <p>
+      Inspired by the <strong>Snowman couple's dance</strong> trend —
+      this game was built as a special digital experience to bridge the distance.
+      <br/><br/>
+      Two people, two screens, one heartbeat.
+      <br/><br/>
+      <em>No matter how far apart, you can always dance together. ❄️</em>
+    </p>
+    <button class="modal-close" id="close-aboutus">So sweet! 💕</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     BACKGROUND MUSIC
+══════════════════════════════════════════ -->
+<audio id="bg-music" src="/static/snowman.m4a" loop preload="auto"></audio>
+
+<!-- ══════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════ -->
+<script>
+/* ════════════════════════════════════════════
+   SNOWFALL (Canvas)
+════════════════════════════════════════════ */
+(function initSnow() {
+  const canvas = document.getElementById('snow-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, flakes = [];
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function createFlake() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * -H,
+      r: Math.random() * 4 + 1,
+      speed: Math.random() * 1.2 + 0.4,
+      drift: (Math.random() - 0.5) * 0.5,
+      opacity: Math.random() * 0.5 + 0.3,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: (Math.random() - 0.5) * 0.03,
+    };
+  }
+
+  function init() {
+    resize();
+    flakes = Array.from({ length: 120 }, createFlake).map(f => ({
+      ...f, y: Math.random() * H
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (const f of flakes) {
+      f.wobble += f.wobbleSpeed;
+      f.x += f.drift + Math.sin(f.wobble) * 0.4;
+      f.y += f.speed;
+      if (f.y > H + 10) { Object.assign(f, createFlake()); f.y = -10; }
+      if (f.x > W + 10) f.x = -10;
+      if (f.x < -10) f.x = W + 10;
+
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${f.opacity})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  init();
+  draw();
+})();
+
+
+/* ════════════════════════════════════════════
+   ROOM ID HELPERS
+════════════════════════════════════════════ */
+function generateRoomId() {
+  const adj = ['crystal','frozen','arctic','velvet','silver','aurora','starlit','misty'];
+  const noun = ['snow','frost','heart','waltz','star','bloom','dream','moon'];
+  const a = adj[Math.floor(Math.random() * adj.length)];
+  const n = noun[Math.floor(Math.random() * noun.length)];
+  const num = Math.floor(Math.random() * 90 + 10);
+  return `${a}-${n}-${num}`;
+}
+
+function getStoredRoom() {
+  return sessionStorage.getItem('snowman_room') || generateRoomId();
+}
+
+function getPlayerId() {
+  let id = sessionStorage.getItem('snowman_pid');
+  if (!id) {
+    id = 'p_' + Math.random().toString(36).slice(2, 9);
+    sessionStorage.setItem('snowman_pid', id);
+  }
+  return id;
+}
+
+
+/* ════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════ */
+let ws = null;
+let myPlayerId = getPlayerId();
+let myName = '';
+let myRole = 'boy'; // 'boy' or 'girl'
+let partnerName = '';
+let partnerRole = '';
+let myRoomId = getStoredRoom();
+let vibe = 0;
+let gameActive = false;
+let countdownAnimFrame = null;
+let currentRound = 1;
+
+let currentLetterScreenMode = 'read';
+let letterReturnTarget = 'lobby';
+let isCheckingLetters = false;
+let receivedNotes = [];
+let readLetterKeys = new Set();
+try {
+  const savedKeys = JSON.parse(localStorage.getItem('snowman_read_letters') || '[]');
+  readLetterKeys = new Set(savedKeys);
+} catch (e) {}
+
+// Sprite animation timers per character (only active during dancing steps)
+const spriteMoveTimers = {
+  p1: null,
+  p2: null
+};
+
+const MOVE_ROW_MAP = {
+  'reach_out': 1,
+  'take_hand': 1,
+  'spin_her': 2,
+  'twirl': 2,
+  'dip': 3,
+  'lean_back': 3
+};
+
+function resetSpritesToRest() {
+  ['sprite-p1', 'sprite-p2'].forEach(id => {
+    const key = id === 'sprite-p1' ? 'p1' : 'p2';
+    if (spriteMoveTimers[key]) {
+      clearInterval(spriteMoveTimers[key]);
+      spriteMoveTimers[key] = null;
+    }
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.remove('dancing-move', 'stumble');
+      el.style.backgroundPosition = '0% 0%'; // Static resting frame
+    }
+  });
+}
+
+function animateCharacterMove(spriteId, rowNumber, durationMs = 1800) {
+  const el = document.getElementById(spriteId);
+  if (!el) return;
+
+  const key = spriteId === 'sprite-p1' ? 'p1' : 'p2';
+  if (spriteMoveTimers[key]) {
+    clearInterval(spriteMoveTimers[key]);
+    spriteMoveTimers[key] = null;
+  }
+
+  el.classList.add('dancing-move');
+
+  let col = 0;
+  const frameInterval = 130;
+  const totalSteps = Math.max(4, Math.floor(durationMs / frameInterval));
+  let step = 0;
+
+  spriteMoveTimers[key] = setInterval(() => {
+    step++;
+    col = (col + 1) % 4; // 4 columns
+    const xPct = col * (100 / 3);
+    const yPct = rowNumber * (100 / 3);
+    el.style.backgroundPosition = `${xPct}% ${yPct}%`;
+
+    if (step >= totalSteps) {
+      clearInterval(spriteMoveTimers[key]);
+      spriteMoveTimers[key] = null;
+      el.classList.remove('dancing-move');
+      el.style.backgroundPosition = '0% 0%'; // Return to resting pose
+    }
+  }, frameInterval);
+}
+
+function playStumbleAnimation() {
+  ['sprite-p1', 'sprite-p2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.remove('stumble', 'dancing-move');
+      void el.offsetWidth; // trigger reflow
+      el.classList.add('stumble');
+      setTimeout(() => {
+        el.classList.remove('stumble');
+        el.style.backgroundPosition = '0% 0%';
+      }, 700);
+    }
+  });
+}
+
+/* ════════════════════════════════════════════
+   LOBBY INIT (System-Assigned Room)
+════════════════════════════════════════════ */
+
+function updateRoomDisplay(roomId) {
+  if (myRoomId && myRoomId !== roomId && ws && ws.readyState < 2) {
+    ws.close();
+  }
+  myRoomId = roomId;
+  sessionStorage.setItem('snowman_room', myRoomId);
+  const el = document.getElementById('room-display');
+  if (el) el.textContent = myRoomId;
+
+  const url = new URL(location.href);
+  url.searchParams.set('room', myRoomId);
+  history.replaceState(null, '', url.toString());
+
+  // Load any previously saved notes for this room from localStorage
+  try {
+    const local = JSON.parse(localStorage.getItem('snowman_notes_' + myRoomId) || '[]');
+    if (Array.isArray(local) && local.length > 0) {
+      mergeIncomingLetters(local);
+    }
+  } catch (e) {}
+
+  // Check server for any notes in this room (instant notification upon opening!)
+  checkRoomLetters(myRoomId);
+  // Connect to room WebSocket right away so partner can chat using letters immediately!
+  initRoomWebSocket();
+}
+
+// ── 1. Resolve room: URL ?room= parameter takes precedence (for partner join), otherwise generate fresh system room
+(function resolveInitialRoom() {
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom && urlRoom.trim()) {
+    updateRoomDisplay(urlRoom.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-'));
+  } else {
+    updateRoomDisplay(myRoomId || generateRoomId());
+  }
+})();
+
+// ── 2. "↻ New" button lets the user request a new system-generated room name
+const btnNewRoom = document.getElementById('btn-new-room');
+if (btnNewRoom) {
+  btnNewRoom.addEventListener('click', () => {
+    updateRoomDisplay(generateRoomId());
+  });
+}
+
+// ── 3. Copy-link button allows sharing the system-assigned room URL
+const btnCopyLink = document.getElementById('btn-copy-link');
+if (btnCopyLink) {
+  btnCopyLink.addEventListener('click', () => {
+    const url = new URL(location.href);
+    url.searchParams.set('room', myRoomId);
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      btnCopyLink.textContent = '✅ Copied!';
+      btnCopyLink.classList.add('copied');
+      setTimeout(() => {
+        btnCopyLink.textContent = '🔗 Copy Link';
+        btnCopyLink.classList.remove('copied');
+      }, 2200);
+    }).catch(() => {
+      prompt('Share this link with your partner:', url.toString());
+    });
+  });
+}
+
+// ── 4. Role selection toggle
+const btnRoleBoy = document.getElementById('btn-role-boy');
+const btnRoleGirl = document.getElementById('btn-role-girl');
+
+btnRoleBoy.addEventListener('click', () => {
+  myRole = 'boy';
+  btnRoleBoy.classList.add('active');
+  btnRoleGirl.classList.remove('active');
+});
+
+btnRoleGirl.addEventListener('click', () => {
+  myRole = 'girl';
+  btnRoleGirl.classList.add('active');
+  btnRoleBoy.classList.remove('active');
+});
+
+/* Modal logic */
+function setupModal(openBtn, closeBtn, overlayId) {
+  const overlay = document.getElementById(overlayId);
+  document.getElementById(openBtn).addEventListener('click', () => overlay.classList.add('open'));
+  document.getElementById(closeBtn).addEventListener('click', () => overlay.classList.remove('open'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+}
+setupModal('btn-howtoplay', 'close-howtoplay', 'modal-howtoplay');
+setupModal('btn-aboutus', 'close-aboutus', 'modal-aboutus');
+
+/* Name input live sync */
+const inputNameEl = document.getElementById('input-name');
+if (inputNameEl) {
+  const savedName = sessionStorage.getItem('snowman_name');
+  if (savedName && !inputNameEl.value) {
+    inputNameEl.value = savedName;
+    myName = savedName;
+  }
+  inputNameEl.addEventListener('input', (e) => {
+    myName = e.target.value.trim();
+    if (myName) {
+      sessionStorage.setItem('snowman_name', myName);
+      const senderInput = document.getElementById('letter-sender');
+      if (senderInput && (!senderInput.value || senderInput.value === 'Your Name')) {
+        senderInput.value = myName;
+      }
+    }
+  });
+}
+
+/* Join button */
+document.getElementById('btn-join').addEventListener('click', joinGame);
+document.getElementById('input-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') joinGame();
+});
+
+
+/* ════════════════════════════════════════════
+   WEBSOCKET & JOIN GAME
+════════════════════════════════════════════ */
+let wsReconnectTimer = null;
+
+function setStatus(msg, type = '') {
+  const el = document.getElementById('lobby-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = type;
+}
+
+function initRoomWebSocket(onReady) {
+  if (!myRoomId) return;
+
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    if (ws.readyState === WebSocket.OPEN && typeof onReady === 'function') {
+      onReady();
+    }
+    return;
+  }
+
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${location.host}/ws/${encodeURIComponent(myRoomId)}/${encodeURIComponent(myPlayerId)}`;
+
+  try {
+    ws = new WebSocket(wsUrl);
+  } catch (err) {
+    console.warn('WS creation error:', err);
+    return;
+  }
+
+  ws.onopen = () => {
+    console.log('Connected to room WebSocket:', myRoomId);
+    clearTimeout(wsReconnectTimer);
+    if (typeof onReady === 'function') {
+      onReady();
+    }
+  };
+
+  ws.onmessage = handleServerMessage;
+
+  ws.onerror = (e) => {
+    console.warn('Room WS error:', e);
+  };
+
+  ws.onclose = () => {
+    console.log('Room WS disconnected, will retry in 2s...');
+    if (gameActive) {
+      showToast('Connection interrupted... reconnecting ❄️', 'fail');
+    }
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = setTimeout(() => {
+      if (myRoomId) {
+        initRoomWebSocket();
+      }
+    }, 2000);
+  };
+}
+
+function joinGame() {
+  const name = document.getElementById('input-name').value.trim();
+  if (!name) {
+    setStatus('Please enter your name first! ❄', 'error');
+    document.getElementById('input-name').focus();
+    return;
+  }
+  myName = name;
+  sessionStorage.setItem('snowman_name', myName);
+  sessionStorage.setItem('snowman_room', myRoomId);
+
+  const doRegister = () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      setStatus('Connected! Registering role…', 'success');
+      ws.send(JSON.stringify({
+        type: 'register',
+        name: myName,
+        role: myRole
+      }));
+    } else {
+      setStatus('Connecting to dance…', '');
+    }
+  };
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    setStatus('Connecting…', '');
+    initRoomWebSocket(doRegister);
+  } else {
+    doRegister();
+  }
+
+  document.getElementById('btn-join').disabled = true;
+}
+
+
+/* ════════════════════════════════════════════
+   SERVER MESSAGE HANDLER
+════════════════════════════════════════════ */
+function handleServerMessage(event) {
+  const data = JSON.parse(event.data);
+
+  switch (data.type) {
+
+    case 'connected':
+      setStatus(`Joined room: ${myRoomId} 🎉`, 'success');
+      if (Array.isArray(data.letters) && data.letters.length > 0) {
+        mergeIncomingLetters(data.letters);
+      }
+      break;
+
+    case 'registered':
+      setStatus(`Registered as ${myRole === 'boy' ? 'Boy (Left)' : 'Girl (Right)'}! Waiting for partner… ❄`, '');
+      document.getElementById('waiting-indicator').classList.add('show');
+      break;
+
+    case 'partner_connected':
+      partnerName = data.partner_name || 'Partner';
+      setStatus(`${partnerName} connected! Waiting for roles…`, 'success');
+      break;
+
+    case 'partner_info':
+      partnerName = data.partner_name || 'Partner';
+      partnerRole = data.partner_role || '';
+      setStatus(`${partnerName} joined as ${partnerRole.toUpperCase()}! ✨`, 'success');
+      break;
+
+    case 'role_conflict':
+      setStatus(`⚠️ ${data.message}`, 'error');
+      showToast(data.message, 'fail');
+      document.getElementById('waiting-indicator').classList.remove('show');
+      document.getElementById('btn-join').disabled = false;
+      // Auto toggle to opposite role to help player
+      if (data.partner_role === 'boy') {
+        btnRoleGirl.click();
+      } else {
+        btnRoleBoy.click();
+      }
+      break;
+
+    case 'both_ready':
+      setStatus('Both roles selected! Server starting dance… ❄️', 'success');
+      document.getElementById('waiting-indicator').classList.remove('show');
+      break;
+
+    case 'start_round':
+      // STRICT RULE: Backend server emits 'start_round' with 5s duration
+      handleStartRound(data);
+      break;
+
+    case 'move_locked':
+      document.getElementById('countdown-status').textContent = `Locked in: ${data.move.replace('_',' ').toUpperCase()}! Waiting for partner… ❄️`;
+      break;
+
+    case 'partner_moved': {
+      const pRole = data.partner_role || '';
+      const pMove = data.move || '';
+      const partnerSpriteId = pRole === 'boy' ? 'sprite-p1' : 'sprite-p2';
+      const moveRow = MOVE_ROW_MAP[pMove] || 1;
+      animateCharacterMove(partnerSpriteId, moveRow, 1800);
+      document.getElementById('countdown-status').textContent = `Partner made their move! ❄️ Choose yours!`;
+      break;
+    }
+
+    case 'round_success':
+      onRoundSuccess(data);
+      break;
+
+    case 'round_fail':
+      onRoundFail(data);
+      break;
+
+    case 'game_win':
+      vibe = 100;
+      updateVibeMeter(100);
+      onGameWin();
+      break;
+
+    case 'game_reset':
+      closeVictoryModal();
+      resetGameLocal();
+      showScreen('game');
+      showToast(`🔄 ${data.reset_by_name || 'Partner'} restarted the dance! Get ready!`, 'success');
+      const cStatus = document.getElementById('countdown-status');
+      if (cStatus) cStatus.textContent = 'Get ready for round 1! ❄️';
+      break;
+
+    case 'letter_received':
+      onLetterReceived(data);
+      break;
+
+    case 'letter_sent_confirm':
+      mergeIncomingLetters([data]);
+      if (document.getElementById('share-status')) {
+        document.getElementById('share-status').textContent = '💌 Winter note sent!';
+        document.getElementById('share-status').className = 'ok';
+      }
+      if (document.getElementById('btn-share')) {
+        document.getElementById('btn-share').disabled = false;
+        document.getElementById('btn-share').textContent = '💌 Send Winter Note';
+      }
+      break;
+
+    case 'partner_disconnected':
+      showToast('Partner disconnected 😢', 'fail');
+      document.getElementById('countdown-status').textContent = 'Partner disconnected. Waiting…';
+      break;
+
+    case 'error':
+      setStatus(data.message, 'error');
+      document.getElementById('btn-join').disabled = false;
+      break;
+  }
+}
+
+
+/* ════════════════════════════════════════════
+   SCREEN TRANSITIONS
+════════════════════════════════════════════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  const target = document.getElementById(id);
+  if (target) target.classList.remove('hidden');
+
+  // Floating mailbox pill: Only visible on the beginning window (lobby), NOT in the game!
+  const mbPill = document.getElementById('btn-mailbox-toggle');
+  if (mbPill) {
+    if (id === 'lobby') {
+      mbPill.style.display = 'flex';
+    } else {
+      mbPill.style.display = 'none';
+    }
+  }
+}
+
+
+/* ════════════════════════════════════════════
+   START ROUND HANDLER
+════════════════════════════════════════════ */
+function handleStartRound(data) {
+  showScreen('game');
+
+  // Update names & tags for Boy (Left) and Girl (Right)
+  const boyPid = data.boy_player;
+  const girlPid = data.girl_player;
+  const names = data.names || {};
+
+  const boyName = names[boyPid] || 'Boy';
+  const girlName = names[girlPid] || 'Girl';
+
+  const isBoy = myPlayerId === boyPid || myRole === 'boy';
+
+  const nameP1 = document.getElementById('name-p1');
+  const nameP2 = document.getElementById('name-p2');
+  const p1Wrap = document.getElementById('p1-wrap');
+  const p2Wrap = document.getElementById('p2-wrap');
+
+  nameP1.textContent = `👦 ${boyName}${isBoy ? ' (YOU)' : ''}`;
+  nameP2.textContent = `👧 ${girlName}${!isBoy ? ' (YOU)' : ''}`;
+
+  if (isBoy) {
+    p1Wrap.classList.add('highlight-me');
+    p2Wrap.classList.remove('highlight-me');
+  } else {
+    p2Wrap.classList.add('highlight-me');
+    p1Wrap.classList.remove('highlight-me');
+  }
+
+  // Update partner name for letter
+  partnerName = isBoy ? girlName : boyName;
+
+  gameActive = true;
+  vibe = data.vibe !== undefined ? data.vibe : vibe;
+  updateVibeMeter(vibe);
+
+  // Reset sprites to resting static pose (NO continuous animation)
+  resetSpritesToRest();
+
+  // Play background music ONLY if user has not muted
+  if (!isUserMuted) {
+    playMusic();
+  }
+
+  // Render move buttons for player's role
+  renderMoveButtons(isBoy ? 'boy' : 'girl', data.round || 1);
+
+  // Start visual 10-second countdown timer in center
+  startSyncedCountdown(data.duration || 10.0, data.round || 1);
+}
+
+/* ════════════════════════════════════════════
+   AUDIO CONTROLLER (Snowman Waltz)
+   Persistent Mute: Once muted, remains muted until manually unmuted!
+════════════════════════════════════════════ */
+const bgMusic = document.getElementById('bg-music');
+const btnMusicToggle = document.getElementById('btn-music-toggle');
+const musicIcon = document.getElementById('music-icon');
+const musicText = document.getElementById('music-text');
+
+let isMusicPlaying = false;
+let isUserMuted = false;
+try {
+  isUserMuted = (localStorage.getItem('snowman_muted') === 'true');
+} catch (e) {}
+
+function updateMusicUI(playing) {
+  isMusicPlaying = playing;
+  if (!btnMusicToggle) return;
+  if (isUserMuted) {
+    btnMusicToggle.classList.remove('playing');
+    btnMusicToggle.classList.add('paused');
+    if (musicIcon) musicIcon.textContent = '🔇';
+    if (musicText) musicText.textContent = 'Music: Muted';
+    return;
+  }
+  if (playing) {
+    btnMusicToggle.classList.remove('paused');
+    btnMusicToggle.classList.add('playing');
+    if (musicIcon) musicIcon.textContent = '🎵';
+    if (musicText) musicText.textContent = 'Snowman Waltz';
+  } else {
+    btnMusicToggle.classList.remove('playing');
+    btnMusicToggle.classList.add('paused');
+    if (musicIcon) musicIcon.textContent = '🔇';
+    if (musicText) musicText.textContent = 'Music: Paused';
+  }
+}
+
+function playMusic() {
+  if (!bgMusic) return;
+  // If user muted the audio, it must stay muted! Never unmute automatically.
+  if (isUserMuted) {
+    bgMusic.muted = true;
+    bgMusic.pause();
+    updateMusicUI(false);
+    return;
+  }
+  bgMusic.muted = false;
+  bgMusic.volume = 0.7;
+  const promise = bgMusic.play();
+  if (promise !== undefined) {
+    promise.then(() => {
+      if (!isUserMuted) {
+        updateMusicUI(true);
+      } else {
+        bgMusic.muted = true;
+        bgMusic.pause();
+        updateMusicUI(false);
+      }
+    }).catch(err => {
+      updateMusicUI(false);
+      // Modern browser autoplay requirement: unlock on user click/interaction
+      const unlock = () => {
+        if (!isUserMuted && bgMusic) {
+          bgMusic.muted = false;
+          bgMusic.play().then(() => updateMusicUI(true)).catch(() => {});
+        }
+        document.removeEventListener('click', unlock);
+        document.removeEventListener('keydown', unlock);
+      };
+      document.addEventListener('click', unlock, { once: true });
+      document.addEventListener('keydown', unlock, { once: true });
+    });
+  }
+}
+
+function pauseMusic() {
+  if (!bgMusic) return;
+  bgMusic.muted = true;
+  bgMusic.pause();
+  updateMusicUI(false);
+}
+
+function toggleMusic() {
+  if (!bgMusic) return;
+  if (isUserMuted || bgMusic.paused || bgMusic.muted) {
+    // User explicitly UNMUTES
+    isUserMuted = false;
+    try { localStorage.setItem('snowman_muted', 'false'); } catch (e) {}
+    bgMusic.muted = false;
+    playMusic();
+    showToast('🎵 Music unmuted', 'success');
+  } else {
+    // User explicitly MUTES
+    isUserMuted = true;
+    try { localStorage.setItem('snowman_muted', 'true'); } catch (e) {}
+    pauseMusic();
+    showToast('🔇 Music muted', 'info');
+  }
+}
+
+if (btnMusicToggle) {
+  btnMusicToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMusic();
+  });
+}
+
+// User interaction audio unlocker on gesture (only if not muted)
+const unlockAudioOnGesture = () => {
+  if (bgMusic && bgMusic.paused && !isUserMuted) {
+    playMusic();
+  }
+  document.removeEventListener('pointerdown', unlockAudioOnGesture);
+};
+document.addEventListener('pointerdown', unlockAudioOnGesture, { once: true });
+
+// Initial sync with stored mute preference
+if (isUserMuted) {
+  if (bgMusic) {
+    bgMusic.muted = true;
+    bgMusic.pause();
+  }
+  updateMusicUI(false);
+}
+
+
+/* ════════════════════════════════════════════
+   RENDER ROLE-SPECIFIC MOVE BUTTONS
+════════════════════════════════════════════ */
+const BOY_MOVES = [
+  { id: 'reach_out', icon: '🤝', title: 'Reach Out', hint: 'Match: Take Hand' },
+  { id: 'spin_her',  icon: '🔄', title: 'Spin Her',  hint: 'Match: Twirl' },
+  { id: 'dip',       icon: '💃', title: 'Dip',       hint: 'Match: Lean Back' }
+];
+
+const GIRL_MOVES = [
+  { id: 'take_hand', icon: '🤝', title: 'Take Hand', hint: 'Match: Reach Out' },
+  { id: 'twirl',     icon: '💫', title: 'Twirl',     hint: 'Match: Spin Her' },
+  { id: 'lean_back', icon: '🌸', title: 'Lean Back', hint: 'Match: Dip' }
+];
+
+function renderMoveButtons(role, roundNum) {
+  const container = document.getElementById('moves-grid');
+  container.innerHTML = '';
+
+  const badge = document.getElementById('role-badge');
+  const roleHint = document.getElementById('role-hint');
+
+  if (role === 'boy') {
+    badge.textContent = "👦 Boy's Moves (Lead)";
+    roleHint.textContent = "Choose your lead dance step";
+  } else {
+    badge.textContent = "👧 Girl's Moves (Follow)";
+    roleHint.textContent = "Choose your complementary step";
+  }
+
+  const moves = role === 'boy' ? BOY_MOVES : GIRL_MOVES;
+
+  moves.forEach(m => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-move';
+    btn.dataset.move = m.id;
+    btn.innerHTML = `
+      <span class="move-icon">${m.icon}</span>
+      <span class="move-title">${m.title}</span>
+      <span class="move-hint">${m.hint}</span>
+    `;
+
+    btn.addEventListener('click', () => onMoveSelected(m.id, btn, roundNum));
+    container.appendChild(btn);
+  });
+}
+
+function onMoveSelected(moveId, buttonEl, roundNum) {
+  if (!gameActive || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  // Mark this button as selected
+  const allBtns = document.querySelectorAll('.btn-move');
+  allBtns.forEach(b => {
+    b.disabled = true;
+    b.classList.remove('selected-move');
+  });
+  buttonEl.classList.add('selected-move');
+
+  // TRIGGER ANIMATION ON CLICK: Immediately animate own character performing this dance step!
+  const mySpriteId = myRole === 'boy' ? 'sprite-p1' : 'sprite-p2';
+  const moveRow = MOVE_ROW_MAP[moveId] || 1;
+  animateCharacterMove(mySpriteId, moveRow, 1800);
+
+  // Send move choice to server
+  ws.send(JSON.stringify({
+    type: 'dance_move',
+    move: moveId,
+    round: roundNum
+  }));
+
+  document.getElementById('countdown-status').textContent = `Locked in! Waiting for partner… ❄️`;
+
+  if (navigator.vibrate) navigator.vibrate([40]);
+}
+
+
+/* ════════════════════════════════════════════
+   SYNCHRONIZED 10-SECOND VISUAL COUNTDOWN
+════════════════════════════════════════════ */
+function startSyncedCountdown(durationSec = 10.0, roundNum = 1) {
+  currentRound = roundNum;
+  if (countdownAnimFrame) cancelAnimationFrame(countdownAnimFrame);
+
+  const countdownNum = document.getElementById('countdown-num');
+  const countdownUnit = document.getElementById('countdown-unit');
+  const countdownStatus = document.getElementById('countdown-status');
+  const countdownInner = document.getElementById('countdown-inner');
+  const timerCircle = document.getElementById('timer-bar');
+  const roundBadge = document.getElementById('countdown-round-badge');
+  const cue = document.getElementById('rhythm-cue');
+
+  roundBadge.textContent = `Round ${roundNum}`;
+  countdownStatus.textContent = 'Pick a dance move! ❄️';
+  countdownInner.classList.remove('beat-pulse');
+
+  const fullCircumference = 263.89; // 2 * PI * 42
+  const startTime = performance.now();
+  const totalMs = durationSec * 1000;
+  let beatFired = false;
+
+  function tick() {
+    const elapsed = performance.now() - startTime;
+    const remainingMs = Math.max(0, totalMs - elapsed);
+    const progress = remainingMs / totalMs; // 1 down to 0
+    const offset = fullCircumference * (1 - progress);
+    timerCircle.style.strokeDashoffset = offset;
+
+    if (remainingMs > 0) {
+      const remainingSec = (remainingMs / 1000).toFixed(1);
+      countdownNum.textContent = remainingSec;
+      countdownUnit.textContent = 'sec';
+
+      if (remainingMs <= 900 && !beatFired) {
+        countdownStatus.textContent = 'Evaluating steps soon… ❄️';
+      }
+
+      countdownAnimFrame = requestAnimationFrame(tick);
+    } else {
+      // ── AT ZERO: 10-Second Window Ends ──
+      countdownNum.textContent = '0.0';
+      countdownUnit.textContent = '❄️';
+      countdownInner.classList.add('beat-pulse');
+      countdownStatus.textContent = '✨ Server evaluating steps… ✨';
+
+      // Rhythm pulse on screen border
+      cue.classList.add('pulse');
+      setTimeout(() => cue.classList.remove('pulse'), 450);
+
+      // Disable any unclicked buttons
+      document.querySelectorAll('.btn-move').forEach(b => b.disabled = true);
+    }
+  }
+
+  countdownAnimFrame = requestAnimationFrame(tick);
+}
+
+
+/* ════════════════════════════════════════════
+   ROUND SUCCESS & FAIL HANDLERS
+════════════════════════════════════════════ */
+function onRoundSuccess(data) {
+  if (countdownAnimFrame) cancelAnimationFrame(countdownAnimFrame);
+  vibe = data.vibe;
+  updateVibeMeter(vibe);
+
+  const pairName = data.pair_name || 'Matched Moves';
+  showToast(`✨ ${pairName}! +20% Vibe`, 'success');
+  document.getElementById('countdown-status').textContent = `✨ ${pairName}! Dancing together…`;
+  spawnHearts(12);
+
+  // Both characters perform the matching dance move together!
+  const pairIdx = data.pair_index || 1;
+  animateCharacterMove('sprite-p1', pairIdx, 2400);
+  animateCharacterMove('sprite-p2', pairIdx, 2400);
+
+  // Step characters slightly closer
+  stepCloser();
+
+  if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
+}
+
+function onRoundFail(data) {
+  if (countdownAnimFrame) cancelAnimationFrame(countdownAnimFrame);
+  vibe = data.vibe;
+  updateVibeMeter(vibe);
+
+  const reason = data.reason || 'Out of sync…';
+  showToast(`❄ ${reason} (-10%)`, 'fail');
+  document.getElementById('countdown-status').textContent = `❄ ${reason}`;
+
+  // Trigger stumble / shake animation
+  playStumbleAnimation();
+
+  if (navigator.vibrate) navigator.vibrate([80]);
+}
+
+
+/* ════════════════════════════════════════════
+   STEP CLOSER LOGIC
+════════════════════════════════════════════ */
+let stepLevel = 0; // 0-5
+function stepCloser() {
+  stepLevel = Math.min(5, stepLevel + 1);
+  const offset = stepLevel * 6; // % offset per step
+  document.getElementById('p1-wrap').style.left = `${offset}%`;
+  document.getElementById('p2-wrap').style.right = `${offset}%`;
+}
+
+
+/* ════════════════════════════════════════════
+   VIBE METER UPDATE
+════════════════════════════════════════════ */
+function updateVibeMeter(pct) {
+  const bar = document.getElementById('vibe-bar');
+  const label = document.getElementById('vibe-pct');
+  bar.style.width = `${pct}%`;
+  label.textContent = `${pct}%`;
+
+  if (pct >= 100) {
+    bar.style.boxShadow = '0 0 20px var(--pink), 0 0 40px var(--purple)';
+  }
+}
+
+
+/* ════════════════════════════════════════════
+   WINNING STATE & IN-STAGE ACTION BAR
+════════════════════════════════════════════ */
+function onGameWin() {
+  gameActive = false;
+  if (countdownAnimFrame) cancelAnimationFrame(countdownAnimFrame);
+
+  // Hide move buttons and countdown dial
+  const movesContainer = document.getElementById('moves-container');
+  if (movesContainer) movesContainer.style.display = 'none';
+
+  const countdownWrap = document.getElementById('countdown-center-wrap');
+  if (countdownWrap) countdownWrap.style.display = 'none';
+
+  // Characters slide to center and touch
+  document.getElementById('p1-wrap').classList.add('win-slide');
+  document.getElementById('p2-wrap').classList.add('win-slide');
+
+  // Show "Perfect Sync!" celebratory overlay with bursting hearts for 2.2s
+  const perfOverlay = document.getElementById('perfect-overlay');
+  perfOverlay.classList.add('show');
+  spawnHearts(25);
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 120]);
+
+  // After brief celebration, remove overlay and display in-stage actions (no blocking modal!)
+  setTimeout(() => {
+    perfOverlay.classList.remove('show');
+    showGameOverPanel();
+  }, 2200);
+}
+
+function closeVictoryModal() {
+  const perfOverlay = document.getElementById('perfect-overlay');
+  if (perfOverlay) {
+    perfOverlay.classList.remove('show');
+  }
+}
+
+function showGameOverPanel() {
+  const panel = document.getElementById('game-over-panel');
+  if (panel) {
+    panel.classList.remove('hidden');
+    panel.style.display = 'flex';
+  }
+}
+
+function requestPlayAgain() {
+  const btnStage = document.getElementById('btn-stage-replay');
+  const btnLetter = document.getElementById('btn-letter-replay');
+  if (btnStage) btnStage.disabled = true;
+  if (btnLetter) btnLetter.disabled = true;
+  setTimeout(() => {
+    if (btnStage) btnStage.disabled = false;
+    if (btnLetter) btnLetter.disabled = false;
+  }, 2500);
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'play_again' }));
+    showToast('🔄 Restarting dance… get ready!', 'success');
+  } else {
+    resetGameLocal();
+    showScreen('game');
+  }
+}
+
+function exitToLobby() {
+  if (ws && ws.readyState < 2) {
+    ws.close();
+  }
+  resetGameLocal();
+  showScreen('lobby');
+  setStatus('Returned to lobby. ❄ Choose a room to dance again!', '');
+  const btnJoin = document.getElementById('btn-join');
+  if (btnJoin) btnJoin.disabled = false;
+  document.getElementById('waiting-indicator').classList.remove('show');
+}
+
+function resetGameLocal() {
+  vibe = 0;
+  updateVibeMeter(0);
+  stepLevel = 0;
+  gameActive = true;
+
+  if (countdownAnimFrame) {
+    cancelAnimationFrame(countdownAnimFrame);
+    countdownAnimFrame = null;
+  }
+
+  closeVictoryModal();
+
+  const panel = document.getElementById('game-over-panel');
+  if (panel) {
+    panel.classList.add('hidden');
+    panel.style.display = 'none';
+  }
+  const stageAlert = document.getElementById('stage-note-alert');
+  if (stageAlert) {
+    stageAlert.classList.add('hidden');
+  }
+
+  const p1 = document.getElementById('p1-wrap');
+  const p2 = document.getElementById('p2-wrap');
+  if (p1) {
+    p1.classList.remove('win-slide');
+    p1.style.left = '0%';
+    p1.style.transform = '';
+  }
+  if (p2) {
+    p2.classList.remove('win-slide');
+    p2.style.right = '0%';
+    p2.style.transform = '';
+  }
+
+  resetSpritesToRest();
+
+  const countdownWrap = document.getElementById('countdown-center-wrap');
+  if (countdownWrap) countdownWrap.style.display = 'flex';
+
+  const movesContainer = document.getElementById('moves-container');
+  if (movesContainer) movesContainer.style.display = 'flex';
+
+  const movesGrid = document.getElementById('moves-grid');
+  if (movesGrid) movesGrid.innerHTML = '';
+
+  const centerResult = document.getElementById('center-result');
+  if (centerResult) {
+    centerResult.classList.remove('show');
+    centerResult.innerHTML = '';
+  }
+
+  const btnStage = document.getElementById('btn-stage-replay');
+  const btnLetter = document.getElementById('btn-letter-replay');
+  if (btnStage) btnStage.disabled = false;
+  if (btnLetter) btnLetter.disabled = false;
+}
+
+function returnFromLetterScreen() {
+  if (letterReturnTarget === 'lobby') {
+    showScreen('lobby');
+  } else {
+    returnToStageOptions();
+  }
+}
+
+function returnToStageOptions() {
+  showScreen('game');
+  showGameOverPanel();
+
+  const viewNotesBtn = document.getElementById('btn-view-notes');
+  const viewNotesTitle = document.getElementById('btn-view-notes-title');
+  if (viewNotesBtn && viewNotesTitle) {
+    if (receivedNotes.length > 0) {
+      viewNotesBtn.classList.remove('hidden');
+      viewNotesTitle.textContent = `View Letters (${receivedNotes.length})`;
+    } else {
+      viewNotesBtn.classList.add('hidden');
+    }
+  }
+}
+
+/* Beginning Window (Lobby) Note button listeners */
+const btnLobbySend = document.getElementById('btn-lobby-send-note');
+if (btnLobbySend) {
+  btnLobbySend.addEventListener('click', () => {
+    openLetterScreen('compose');
+  });
+}
+const btnLobbyView = document.getElementById('btn-lobby-view-notes');
+if (btnLobbyView) {
+  btnLobbyView.addEventListener('click', () => {
+    openLetterScreen('read');
+  });
+}
+
+/* Post-game on-stage button listeners */
+const btnOpenNote = document.getElementById('btn-open-note');
+if (btnOpenNote) btnOpenNote.addEventListener('click', () => openLetterScreen('compose'));
+
+const btnViewNotes = document.getElementById('btn-view-notes');
+if (btnViewNotes) btnViewNotes.addEventListener('click', () => openLetterScreen('read'));
+
+const btnReadStageAlert = document.getElementById('btn-read-stage-alert');
+if (btnReadStageAlert) btnReadStageAlert.addEventListener('click', () => openLetterScreen('read'));
+
+const btnStageReplay = document.getElementById('btn-stage-replay');
+if (btnStageReplay) btnStageReplay.addEventListener('click', requestPlayAgain);
+
+const btnStageExit = document.getElementById('btn-stage-exit');
+if (btnStageExit) btnStageExit.addEventListener('click', exitToLobby);
+
+/* Letter screen action listeners */
+const btnBackStage = document.getElementById('btn-back-stage');
+if (btnBackStage) btnBackStage.addEventListener('click', returnFromLetterScreen);
+
+const btnLetterBack = document.getElementById('btn-letter-back-options');
+if (btnLetterBack) btnLetterBack.addEventListener('click', returnFromLetterScreen);
+
+const btnComposeBack = document.getElementById('btn-compose-back-options');
+if (btnComposeBack) btnComposeBack.addEventListener('click', returnFromLetterScreen);
+
+const btnComposeToRead = document.getElementById('btn-compose-to-read');
+if (btnComposeToRead) btnComposeToRead.addEventListener('click', () => openLetterScreen('read'));
+
+const btnLetterReplay = document.getElementById('btn-letter-replay');
+if (btnLetterReplay) btnLetterReplay.addEventListener('click', requestPlayAgain);
+
+const btnLetterExit = document.getElementById('btn-letter-exit');
+if (btnLetterExit) btnLetterExit.addEventListener('click', exitToLobby);
+
+const btnShareLetter = document.getElementById('btn-share');
+if (btnShareLetter) btnShareLetter.addEventListener('click', shareLetter);
+
+/* ════════════════════════════════════════════
+   WINTER MAILBOX & NOTIFICATION SYSTEM
+════════════════════════════════════════════ */
+function getLetterKey(note) {
+  if (!note) return '';
+  const s = String(note.sender || '').trim().toLowerCase();
+  const r = String(note.recipient || '').trim().toLowerCase();
+  const b = String(note.body || note.text || '').trim();
+  const t = String(note.time || '').trim();
+  return `${s}::${r}::${b}::${t}`;
+}
+
+function isSameLetter(a, b) {
+  if (!a || !b) return false;
+  // If both have identical positive server ID
+  if (a.id && b.id && a.id === b.id && typeof a.id === 'number' && typeof b.id === 'number' && a.id < 100000000) {
+    return true;
+  }
+  const bodyA = String(a.body || a.text || '').trim();
+  const bodyB = String(b.body || b.text || '').trim();
+  if (bodyA !== bodyB) return false;
+
+  const senderA = String(a.sender || '').trim().toLowerCase();
+  const senderB = String(b.sender || '').trim().toLowerCase();
+  const myNameLower = (myName || '').trim().toLowerCase();
+  const isSenderMatch = (senderA === senderB) ||
+    ((senderA === 'me' || senderA === myNameLower) && (senderB === 'me' || senderB === myNameLower));
+  if (!isSenderMatch) return false;
+
+  // Check timestamp closeness if available
+  const tsA = parseFloat(a.timestamp) || 0;
+  const tsB = parseFloat(b.timestamp) || 0;
+  if (tsA > 0 && tsB > 0) {
+    return Math.abs(tsA - tsB) <= 10.0;
+  }
+
+  // Check time string
+  const timeA = String(a.time || '').trim();
+  const timeB = String(b.time || '').trim();
+  if (timeA && timeB && timeA === timeB) {
+    return true;
+  }
+
+  return true;
+}
+
+function mergeIncomingLetters(letters, markAsNew = false) {
+  if (!Array.isArray(letters) || letters.length === 0) return;
+
+  let hasNewPartnerLetter = false;
+  let newSenderName = '';
+  let listChanged = false;
+
+  letters.forEach(note => {
+    if (!note) return;
+    const existingIndex = receivedNotes.findIndex(n => isSameLetter(n, note));
+    if (existingIndex !== -1) {
+      // If incoming note has a confirmed server ID, update the local note
+      if (note.id && typeof note.id === 'number' && note.id < 100000000 && receivedNotes[existingIndex].id !== note.id) {
+        receivedNotes[existingIndex].id = note.id;
+        if (note.time) receivedNotes[existingIndex].time = note.time;
+        if (note.timestamp) receivedNotes[existingIndex].timestamp = note.timestamp;
+        listChanged = true;
+      }
+      return;
+    }
+
+    receivedNotes.push(note);
+    listChanged = true;
+    const isFromMe = (note.sender_id && note.sender_id === myPlayerId) ||
+                     (myName && note.sender && note.sender.toLowerCase() === myName.toLowerCase());
+    if (!isFromMe && note.sender && note.sender !== 'Me' && note.sender !== 'Someone') {
+      if (!partnerName || partnerName === 'Partner') {
+        partnerName = note.sender;
+      }
+      hasNewPartnerLetter = true;
+      newSenderName = note.sender;
+    }
+  });
+
+  // If no new notes arrived and none changed, DO NOT touch DOM or re-render (prevents reading/editing blinking!)
+  if (!listChanged) return;
+
+  try {
+    localStorage.setItem('snowman_notes_' + myRoomId, JSON.stringify(receivedNotes));
+  } catch (e) {}
+
+  updateMailboxUI();
+  if (currentLetterScreenMode === 'read') {
+    renderReceivedNotes();
+  }
+
+  if (hasNewPartnerLetter && markAsNew) {
+    showToast(`💌 New winter note from ${newSenderName || partnerName || 'Partner'}! ❄️`, 'success');
+  }
+}
+
+function updateMailboxUI() {
+  const unreadCount = receivedNotes.filter(n => !readLetterKeys.has(getLetterKey(n))).length;
+
+  // 1. Floating Mailbox Pill Badge (Top-Left)
+  const mbBadge = document.getElementById('mailbox-badge');
+  const mbPill = document.getElementById('btn-mailbox-toggle');
+  if (mbBadge && mbPill) {
+    if (unreadCount > 0) {
+      mbBadge.textContent = unreadCount;
+      mbBadge.classList.remove('hidden');
+      mbBadge.classList.add('unread-pulse');
+      mbPill.classList.add('has-unread');
+    } else {
+      mbBadge.classList.add('hidden');
+      mbBadge.classList.remove('unread-pulse');
+      mbPill.classList.remove('has-unread');
+    }
+  }
+
+  // 2. Lobby Card Badge
+  const lobbyBadge = document.getElementById('lobby-card-badge');
+  if (lobbyBadge) {
+    if (unreadCount > 0) {
+      lobbyBadge.textContent = unreadCount;
+      lobbyBadge.classList.remove('hidden');
+    } else {
+      lobbyBadge.classList.add('hidden');
+    }
+  }
+
+  // 2b. Beginning Window (Lobby) View Letters Badge
+  const lobbyLetterBadge = document.getElementById('lobby-letter-badge');
+  if (lobbyLetterBadge) {
+    if (unreadCount > 0) {
+      lobbyLetterBadge.textContent = unreadCount;
+      lobbyLetterBadge.classList.remove('hidden');
+    } else {
+      lobbyLetterBadge.classList.add('hidden');
+    }
+  }
+
+  // 3. Mailbox Modal Toolbar Status
+  const statusEl = document.getElementById('mailbox-status-text');
+  if (statusEl) {
+    if (receivedNotes.length === 0) {
+      statusEl.textContent = '❄️ No winter notes received yet';
+    } else if (unreadCount > 0) {
+      statusEl.textContent = `💌 ${unreadCount} new winter note${unreadCount > 1 ? 's' : ''}!`;
+    } else {
+      statusEl.textContent = `📬 ${receivedNotes.length} winter letter${receivedNotes.length > 1 ? 's' : ''} in mailbox`;
+    }
+  }
+
+  // 4. Mailbox Modal Notes List
+  const container = document.getElementById('mailbox-notes-container');
+  if (!container) return;
+
+  if (receivedNotes.length === 0) {
+    container.innerHTML = `
+      <div class="empty-mailbox">
+        <div class="empty-ico">❄️📬❄️</div>
+        <h3>No letters received yet</h3>
+        <p>When your dance partner writes to you, their warm winter love notes will appear right here!</p>
+        <button type="button" class="btn-compose-action" id="btn-mb-compose-empty">✍️ Write a Note to Partner</button>
+      </div>
+    `;
+    const emptyBtn = document.getElementById('btn-mb-compose-empty');
+    if (emptyBtn) {
+      emptyBtn.addEventListener('click', toggleQuickCompose);
+    }
+  } else {
+    container.innerHTML = receivedNotes.slice().reverse().map((note, idx) => {
+      const noteNum = receivedNotes.length - idx;
+      const isUnread = !readLetterKeys.has(getLetterKey(note));
+      return `
+        <div class="mb-note-card ${isUnread ? 'unread-note' : ''}">
+          <div class="mb-card-header">
+            <span class="mb-note-tag">💌 Note #${noteNum} ${isUnread ? '• NEW' : ''}</span>
+            <span class="mb-note-time">🕒 ${escapeHtml(note.time || '')}</span>
+          </div>
+          <div class="mb-salutation">Dear <strong>${escapeHtml(note.recipient)}</strong>,</div>
+          <div class="mb-body">${escapeHtml(note.body)}</div>
+          <div class="mb-closing">
+            <div>Sincerely,</div>
+            <div class="mb-sender">💕 ${escapeHtml(note.sender)}</div>
+          </div>
+          <div class="mb-actions">
+            <button type="button" class="btn-mb-reply" data-sender="${escapeHtml(note.sender)}">💬 Reply</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.btn-mb-reply').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const sender = e.currentTarget.getAttribute('data-sender') || 'Partner';
+        replyFromMailbox(sender);
+      });
+    });
+  }
+}
+
+function openMailboxModal() {
+  const modal = document.getElementById('modal-mailbox');
+  if (!modal) return;
+  modal.classList.add('open');
+
+  const recInput = document.getElementById('mb-recipient');
+  const senderInput = document.getElementById('mb-sender');
+  if (recInput && !recInput.value) {
+    recInput.value = partnerName || 'Partner';
+  }
+  if (senderInput && !senderInput.value) {
+    senderInput.value = myName || (document.getElementById('input-name') ? document.getElementById('input-name').value.trim() : '') || 'Your Name';
+  }
+
+  // Mark all viewed notes as read
+  receivedNotes.forEach(note => {
+    readLetterKeys.add(getLetterKey(note));
+  });
+  try {
+    localStorage.setItem('snowman_read_letters', JSON.stringify([...readLetterKeys]));
+  } catch (e) {}
+
+  updateMailboxUI();
+}
+
+function closeMailboxModal() {
+  const modal = document.getElementById('modal-mailbox');
+  if (modal) modal.classList.remove('open');
+  const quickCompose = document.getElementById('mailbox-quick-compose');
+  if (quickCompose) quickCompose.classList.add('hidden');
+}
+
+function toggleQuickCompose() {
+  const qc = document.getElementById('mailbox-quick-compose');
+  if (!qc) return;
+  const isHidden = qc.classList.contains('hidden');
+  if (isHidden) {
+    qc.classList.remove('hidden');
+    const recInput = document.getElementById('mb-recipient');
+    const senderInput = document.getElementById('mb-sender');
+    if (recInput && !recInput.value) recInput.value = partnerName || 'Partner';
+    if (senderInput && !senderInput.value) senderInput.value = myName || (document.getElementById('input-name') ? document.getElementById('input-name').value.trim() : '') || 'Your Name';
+    const bodyInput = document.getElementById('mb-body');
+    if (bodyInput) bodyInput.focus();
+  } else {
+    qc.classList.add('hidden');
+  }
+}
+
+function replyFromMailbox(toSender) {
+  const qc = document.getElementById('mailbox-quick-compose');
+  if (qc) qc.classList.remove('hidden');
+  const recInput = document.getElementById('mb-recipient');
+  if (recInput) recInput.value = toSender || partnerName || 'Partner';
+  const bodyInput = document.getElementById('mb-body');
+  if (bodyInput) {
+    bodyInput.focus();
+    bodyInput.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+async function sendNoteFromMailbox() {
+  const recInput = document.getElementById('mb-recipient');
+  const bodyInput = document.getElementById('mb-body');
+  const senderInput = document.getElementById('mb-sender');
+  const statusEl = document.getElementById('mb-send-status');
+
+  const recipient = (recInput ? recInput.value.trim() : '') || (partnerName || 'Partner');
+  const body = (bodyInput ? bodyInput.value.trim() : '');
+  const sender = (senderInput ? senderInput.value.trim() : '') || (myName || 'Me');
+
+  if (!body) {
+    if (statusEl) {
+      statusEl.textContent = 'Please write a message first! ❄️';
+      statusEl.className = 'mb-status err';
+    }
+    if (bodyInput) bodyInput.focus();
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.textContent = 'Sending winter note… ❄️';
+    statusEl.className = 'mb-status';
+  }
+
+  const newNote = {
+    id: Date.now(),
+    recipient: recipient,
+    body: body,
+    text: body,
+    sender: sender,
+    sender_id: myPlayerId,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: Date.now() / 1000
+  };
+
+  // Optimistically store in local thread
+  mergeIncomingLetters([newNote]);
+
+  // 1. If WebSocket is connected, use real-time WS ONLY
+  let wsSent = false;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(JSON.stringify({
+        type: 'share_letter',
+        recipient: recipient,
+        body: body,
+        sender: sender,
+        sender_id: myPlayerId
+      }));
+      wsSent = true;
+    } catch (e) {
+      wsSent = false;
+    }
+  }
+
+  // 2. Only fallback to HTTP POST if WebSocket is NOT connected!
+  if (!wsSent) {
+    try {
+      const res = await fetch(`/api/room/${encodeURIComponent(myRoomId)}/letter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient, body, sender, sender_id: myPlayerId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.letter) {
+          mergeIncomingLetters([data.letter]);
+        }
+      } else {
+        if (statusEl) {
+          statusEl.textContent = 'Could not send note. Please check room code.';
+          statusEl.className = 'mb-status err';
+        }
+      }
+    } catch (e) {
+      if (statusEl) {
+        statusEl.textContent = 'Network error while sending note.';
+        statusEl.className = 'mb-status err';
+      }
+    }
+  }
+
+  if (statusEl) {
+    statusEl.textContent = `💌 Note sent to ${recipient}!`;
+    statusEl.className = 'mb-status ok';
+  }
+  showToast(`💌 Winter note sent to ${recipient}! ❄️`, 'success');
+  if (bodyInput) bodyInput.value = '';
+  setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+}
+
+async function checkRoomLetters(roomId) {
+  if (!roomId || isCheckingLetters) return;
+  isCheckingLetters = true;
+  try {
+    const res = await fetch(`/api/room/${encodeURIComponent(roomId)}/letters`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.letters) && data.letters.length > 0) {
+        mergeIncomingLetters(data.letters, false);
+      }
+    }
+  } catch (e) {
+    // Non-blocking
+  } finally {
+    isCheckingLetters = false;
+  }
+}
+
+// Background polling loop (secondary fallback - WebSocket handles real-time delivery)
+setInterval(() => {
+  if (myRoomId) {
+    checkRoomLetters(myRoomId);
+  }
+}, 4000);
+
+/* Mailbox Event Listeners */
+const btnMbToggle = document.getElementById('btn-mailbox-toggle');
+if (btnMbToggle) btnMbToggle.addEventListener('click', openMailboxModal);
+
+const btnLobbyMb = document.getElementById('btn-lobby-mailbox');
+if (btnLobbyMb) btnLobbyMb.addEventListener('click', openMailboxModal);
+
+const btnCloseMb = document.getElementById('btn-close-mailbox');
+if (btnCloseMb) btnCloseMb.addEventListener('click', closeMailboxModal);
+
+const btnMbCloseBottom = document.getElementById('btn-mailbox-close-bottom');
+if (btnMbCloseBottom) btnMbCloseBottom.addEventListener('click', closeMailboxModal);
+
+const btnToggleQC = document.getElementById('btn-toggle-quick-compose');
+if (btnToggleQC) btnToggleQC.addEventListener('click', toggleQuickCompose);
+
+const btnMbSend = document.getElementById('btn-mb-send');
+if (btnMbSend) btnMbSend.addEventListener('click', sendNoteFromMailbox);
+
+const modalMb = document.getElementById('modal-mailbox');
+if (modalMb) {
+  modalMb.addEventListener('click', (e) => {
+    if (e.target.id === 'modal-mailbox') closeMailboxModal();
+  });
+}
+
+/* ════════════════════════════════════════════
+   LETTER SCREEN (Multi-Letter Exchange)
+════════════════════════════════════════════ */
+
+function openLetterScreen(viewMode = 'read') {
+  // Only determine new return target if coming from another screen
+  const currentOpenScreen = document.querySelector('.screen:not(.hidden)');
+  if (currentOpenScreen && currentOpenScreen.id !== 'letter-screen') {
+    letterReturnTarget = (currentOpenScreen.id === 'lobby') ? 'lobby' : 'game';
+  }
+
+  showScreen('letter-screen');
+
+  const recSection = document.getElementById('received-notes-section');
+  const compCard = document.getElementById('compose-letter-card');
+  const screenTitle = document.getElementById('letter-screen-title');
+  const btnComposeToRead = document.getElementById('btn-compose-to-read');
+  const stageAlert = document.getElementById('stage-note-alert');
+  if (stageAlert) stageAlert.classList.add('hidden');
+
+  // Update back buttons depending on return target
+  const backText = letterReturnTarget === 'lobby' ? '← Back to Lobby' : '← Back to Options';
+  const btnBackTop = document.getElementById('btn-back-stage');
+  const btnBackCompose = document.getElementById('btn-compose-back-options');
+  const btnBackNav = document.getElementById('btn-letter-back-options');
+  if (btnBackTop) btnBackTop.textContent = backText;
+  if (btnBackCompose) btnBackCompose.textContent = backText;
+  if (btnBackNav) btnBackNav.textContent = backText;
+
+  const btnReplay = document.getElementById('btn-letter-replay');
+  if (btnReplay) {
+    btnReplay.style.display = letterReturnTarget === 'lobby' ? 'none' : 'inline-flex';
+  }
+
+  // Handle boolean or string mode ('read' / true or 'compose' / false)
+  const isReadMode = (viewMode === 'read' || viewMode === true);
+  currentLetterScreenMode = isReadMode ? 'read' : 'compose';
+
+  if (isReadMode) {
+    // ONLY show the received letter(s) - NO compose card stacked beneath
+    if (recSection) recSection.classList.remove('hidden');
+    if (compCard) compCard.classList.add('hidden');
+    if (screenTitle) screenTitle.textContent = '📬 Winter Notes Exchange';
+    renderReceivedNotes();
+
+    // Mark all letters as read
+    receivedNotes.forEach(n => {
+      const k = getLetterKey(n);
+      readLetterKeys.add(k);
+    });
+    try {
+      localStorage.setItem('snowman_read_letters', JSON.stringify([...readLetterKeys]));
+    } catch (e) {}
+    updateMailboxUI();
+  } else {
+    // ONLY show the compose letter card - NO received letters card
+    if (recSection) recSection.classList.add('hidden');
+    if (compCard) compCard.classList.remove('hidden');
+    if (screenTitle) screenTitle.textContent = '✍️ Write a Winter Note';
+
+    // Show button to switch back to read view if partner has notes
+    if (btnComposeToRead) {
+      if (receivedNotes.length > 0) {
+        btnComposeToRead.style.display = 'inline-flex';
+        btnComposeToRead.textContent = `📖 View Letters (${receivedNotes.length})`;
+      } else {
+        btnComposeToRead.style.display = 'none';
+      }
+    }
+
+    const recInput = document.getElementById('letter-recipient');
+    const bodyInput = document.getElementById('letter-body');
+    const senderInput = document.getElementById('letter-sender');
+
+    const lobbyName = (document.getElementById('input-name')?.value || '').trim();
+    if (lobbyName && !myName) {
+      myName = lobbyName;
+    }
+
+    if (recInput && !recInput.value) {
+      recInput.value = partnerName || 'Partner';
+    }
+    if (senderInput && !senderInput.value) {
+      senderInput.value = myName || 'Your Name';
+    }
+
+    if (recInput) recInput.readOnly = false;
+    if (bodyInput) {
+      bodyInput.readOnly = false;
+      setTimeout(() => bodyInput.focus(), 80);
+    }
+    if (senderInput) senderInput.readOnly = false;
+  }
+
+  // Scroll to top of letter screen so the header & letter top are NEVER cut off
+  const letterScreen = document.getElementById('letter-screen');
+  if (letterScreen) letterScreen.scrollTop = 0;
+}
+
+let lastRenderedNotesKey = '';
+
+function renderReceivedNotes(force = false) {
+  const section = document.getElementById('received-notes-section');
+  const list = document.getElementById('received-notes-list');
+  const viewNotesBtn = document.getElementById('btn-view-notes');
+  const viewNotesTitle = document.getElementById('btn-view-notes-title');
+
+  if (viewNotesBtn) {
+    if (receivedNotes.length > 0) {
+      viewNotesBtn.classList.remove('hidden');
+      if (viewNotesTitle) {
+        viewNotesTitle.textContent = `View Letters (${receivedNotes.length})`;
+      }
+    } else {
+      viewNotesBtn.classList.add('hidden');
+    }
+  }
+
+  // CRITICAL FIX: Only display section if in 'read' mode!
+  // If user is composing a note, NEVER pop up the received-notes-section above it!
+  if (currentLetterScreenMode === 'read') {
+    if (section) section.classList.remove('hidden');
+  } else {
+    if (section) section.classList.add('hidden');
+    return;
+  }
+
+  if (!list) return;
+
+  // Prevent re-rendering DOM if receivedNotes hasn't changed (stops all reading jitter/blinking)
+  const currentKey = receivedNotes.map(n => getLetterKey(n)).join('||');
+  if (!force && currentKey === lastRenderedNotesKey && list.children.length > 0) {
+    return;
+  }
+  lastRenderedNotesKey = currentKey;
+
+  if (receivedNotes.length === 0) {
+    list.innerHTML = `
+      <div class="received-note-card empty-mailbox-card" style="text-align: center; padding: 1.8rem 1.4rem;">
+        <div style="font-size: 2.4rem; margin-bottom: .4rem;">❄️📬❄️</div>
+        <div style="font-family: var(--script); font-size: 1.55rem; color: #be185d; margin-bottom: .3rem;">No letters yet</div>
+        <p style="font-size: .88rem; color: #475569; margin-bottom: 1.2rem; line-height: 1.5;">When you or your dance partner write letters, they will appear right here!</p>
+        <div style="display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap;">
+          <button type="button" class="btn-card-reply" onclick="openLetterScreen('compose')">
+            <span>✍️</span>
+            <span>Write a Winter Note</span>
+          </button>
+          <button type="button" class="btn-card-done" onclick="returnFromLetterScreen()">
+            <span>${letterReturnTarget === 'lobby' ? '← Back to Lobby' : '← Back to Options'}</span>
+          </button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  // Render cards in reverse order (newest on top)
+  list.innerHTML = receivedNotes.slice().reverse().map((note, idx) => {
+    const isFromMe = (note.sender_id && note.sender_id === myPlayerId) || (myName && note.sender === myName);
+    const tag = isFromMe ? '💌 Sent by You' : `❄️ From ${escapeHtml(note.sender || 'Partner')}`;
+    const replyTarget = isFromMe ? (note.recipient || partnerName || 'Partner') : (note.sender || partnerName || 'Partner');
+
+    return `
+      <div class="received-note-card ${isFromMe ? 'sent-by-me-card' : ''}">
+        <div class="received-note-stamp">${tag}</div>
+        <div class="received-salutation">Dear <strong>${escapeHtml(note.recipient)}</strong>,</div>
+        <div class="received-body">${escapeHtml(note.body)}</div>
+        <div class="received-closing">
+          <div>Sincerely,</div>
+          <div class="received-sender-name">💕 ${escapeHtml(note.sender)}</div>
+          <div class="received-time">${escapeHtml(note.time || '')}</div>
+        </div>
+        <div class="received-note-footer-actions">
+          <button type="button" class="btn-card-reply" onclick="replyToNote(this.getAttribute('data-target'))" data-target="${escapeHtml(replyTarget)}">
+            <span>💌</span>
+            <span>Send a Letter Back</span>
+          </button>
+          <button type="button" class="btn-card-done" onclick="returnFromLetterScreen()">
+            <span>${letterReturnTarget === 'lobby' ? '← Back to Lobby' : '← Back to Options'}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function replyToNote(targetName) {
+  openLetterScreen('compose');
+  const recInput = document.getElementById('letter-recipient');
+  if (recInput && targetName && targetName !== 'You') {
+    recInput.value = targetName;
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function shareLetter() {
+  const recInput = document.getElementById('letter-recipient');
+  const bodyInput = document.getElementById('letter-body');
+  const senderInput = document.getElementById('letter-sender');
+  const shareStatus = document.getElementById('share-status');
+  const shareBtn = document.getElementById('btn-share');
+
+  const recipient = (recInput ? recInput.value.trim() : '') || (partnerName || 'Partner');
+  const body = (bodyInput ? bodyInput.value.trim() : '');
+  const sender = (senderInput ? senderInput.value.trim() : '') || (myName || 'Me');
+
+  if (!body) {
+    showToast('Please write a message first! ❄️', 'fail');
+    if (bodyInput) bodyInput.focus();
+    return;
+  }
+
+  if (shareBtn) shareBtn.disabled = true;
+  if (shareStatus) {
+    shareStatus.textContent = 'Sending note… ❄️';
+    shareStatus.className = '';
+  }
+
+  const newNote = {
+    id: Date.now(),
+    recipient: recipient,
+    body: body,
+    text: body,
+    sender: sender,
+    sender_id: myPlayerId,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: Date.now() / 1000
+  };
+
+  // Optimistically store in local thread so sender immediately sees their note
+  mergeIncomingLetters([newNote]);
+
+  // 1. If WebSocket is connected, send real-time
+  let wsSent = false;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(JSON.stringify({
+        type: 'share_letter',
+        recipient: recipient,
+        body: body,
+        sender: sender,
+        sender_id: myPlayerId
+      }));
+      wsSent = true;
+    } catch (e) {
+      wsSent = false;
+    }
+  }
+
+  // 2. Only fallback to HTTP POST if WebSocket was NOT connected!
+  if (!wsSent) {
+    const currentRoom = myRoomId || sessionStorage.getItem('snowman_room') || 'default';
+    try {
+      const res = await fetch(`/api/room/${encodeURIComponent(currentRoom)}/letter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient, body, sender, sender_id: myPlayerId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.letter) {
+          mergeIncomingLetters([data.letter]);
+        }
+      }
+    } catch (err) {
+      console.warn('HTTP fallback warning:', err);
+    }
+  }
+
+  if (shareBtn) shareBtn.disabled = false;
+  if (shareStatus) {
+    shareStatus.textContent = `💌 Note sent to ${recipient}! You can write another note anytime.`;
+    shareStatus.className = 'ok';
+    setTimeout(() => { if (shareStatus) shareStatus.textContent = ''; }, 3500);
+  }
+  showToast(`💌 Winter note sent to ${recipient}! ❄️`, 'success');
+  if (bodyInput) {
+    bodyInput.value = '';
+    bodyInput.focus();
+  }
+
+  const btnComposeToRead = document.getElementById('btn-compose-to-read');
+  if (btnComposeToRead && receivedNotes.length > 0) {
+    btnComposeToRead.style.display = 'inline-flex';
+    btnComposeToRead.textContent = `📖 View Letters (${receivedNotes.length})`;
+  }
+}
+
+function onLetterReceived(data) {
+  const note = {
+    id: data.id || Date.now(),
+    recipient: data.recipient || myName || 'Partner',
+    body: data.body !== undefined ? data.body : (data.text || ''),
+    sender: data.sender || partnerName || 'Partner',
+    time: data.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+
+  mergeIncomingLetters([note], true);
+
+  // If on letter screen, update active view or notification
+  const letterScreen = document.getElementById('letter-screen');
+  if (letterScreen && !letterScreen.classList.contains('hidden')) {
+    const recSection = document.getElementById('received-notes-section');
+    if (recSection && !recSection.classList.contains('hidden')) {
+      renderReceivedNotes();
+    }
+    const btnComposeToRead = document.getElementById('btn-compose-to-read');
+    if (btnComposeToRead) {
+      btnComposeToRead.style.display = 'inline-flex';
+      btnComposeToRead.textContent = `📖 View Letters (${receivedNotes.length})`;
+    }
+  }
+
+  // STRICT RULE: Letters must NOT be in the game while actively dancing!
+  // Only show stage-note-alert if the dance is finished / post-game (gameActive is false)
+  const gameScreen = document.getElementById('game');
+  if (gameScreen && !gameScreen.classList.contains('hidden')) {
+    if (!gameActive) {
+      const stageAlert = document.getElementById('stage-note-alert');
+      const stageAlertText = document.getElementById('stage-note-alert-text');
+      if (stageAlert && stageAlertText) {
+        stageAlertText.textContent = `💌 ${note.sender} sent you a winter note!`;
+        stageAlert.classList.remove('hidden');
+      }
+      showToast(`💌 ${note.sender} sent you a winter note! Click View Note!`, 'success');
+    }
+  } else {
+    showToast(`💌 New winter note arrived from ${note.sender}! Check Letters!`, 'success');
+  }
+
+  if (navigator.vibrate) navigator.vibrate([60, 40, 60, 40, 60]);
+}
+
+
+/* ════════════════════════════════════════════
+   TOAST & PARTICLES
+════════════════════════════════════════════ */
+let toastTimer = null;
+function showToast(msg, type = '') {
+  const toast = document.getElementById('sync-toast');
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.className = 'show ' + type;
+  toastTimer = setTimeout(() => toast.className = '', 1800);
+}
+
+function spawnHearts(count = 8) {
+  const emojis = ['💕','💖','✨','❄️','💗','🌟'];
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const h = document.createElement('div');
+      h.className = 'heart-particle';
+      h.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      h.style.left = `${Math.random() * 80 + 10}vw`;
+      h.style.top = `${Math.random() * 60 + 20}vh`;
+      h.style.animationDuration = `${Math.random() * 0.8 + 1.4}s`;
+      document.body.appendChild(h);
+      setTimeout(() => h.remove(), 2200);
+    }, i * 80);
+  }
+}
+
+// Initial screen setup
+showScreen('lobby');
+</script>
+</body>
+</html>
